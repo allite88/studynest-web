@@ -241,6 +241,7 @@ const db   = getFirestore(app);
 
 let currentUser = null;
 let currentTab  = 'papers';
+const TYPE_MAP = { papers:'paper', notes:'note', collection:'collection', books:'book' };
 let editingId   = null;
 let editingData = null;
 let allMembers  = [];
@@ -314,7 +315,8 @@ window.loadContent = async () => {
   const list    = document.getElementById('content-list');
   list.innerHTML = '<div class="text-slate-400 text-sm py-8 text-center">Loading...</div>';
 
-  let q = query(collection(db,'content'), where('type','==',currentTab));
+  const contentType = TYPE_MAP[currentTab] || currentTab;
+  let q = query(collection(db,'content'), where('type','==',contentType));
   const snap = await getDocs(q);
   let docs = snap.docs.map(d => ({id:d.id, ...d.data()}));
 
@@ -519,10 +521,13 @@ function buildPaperForm(d) {
 }
 
 window.toggleSlot = (key, type) => {
-  const pdfDiv = document.getElementById(`slot-${key}-pdf`);
-  const row    = document.getElementById(`slot-${key}`);
-  if (pdfDiv) pdfDiv.classList.toggle('hidden', type !== 'pdf');
-  if (pdfDiv) pdfDiv.classList.toggle('mt-2', type === 'pdf');
+  const pdfDiv  = document.getElementById(`slot-${key}-pdf`);
+  const quizDiv = document.getElementById(`slot-${key}-quiz`);
+  const row     = document.getElementById(`slot-${key}`);
+  if (pdfDiv)  pdfDiv.classList.toggle('hidden',  type !== 'pdf');
+  if (pdfDiv)  pdfDiv.classList.toggle('mt-2',    type === 'pdf');
+  if (quizDiv) quizDiv.classList.toggle('hidden', type !== 'quiz');
+  if (quizDiv) quizDiv.classList.toggle('mt-2',   type === 'quiz');
   if (row) {
     row.classList.remove('has-quiz','has-pdf');
     if (type==='quiz') row.classList.add('has-quiz');
@@ -598,7 +603,7 @@ window.saveContent = async () => {
   if (currentTab === 'papers') { await savePaperContent(); return; }
   const get = id => document.getElementById(id);
   const data = {
-    type:     currentTab,
+    type:     TYPE_MAP[currentTab] || currentTab,
     subject:  get('f-subject')?.value || '',
     year:     parseInt(get('f-year')?.value) || null,
     title:    get('f-title')?.value.trim() || '',
