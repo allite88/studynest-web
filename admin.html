@@ -126,7 +126,7 @@
       <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
         <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan Esei)</div>
         <div class="flex gap-2 flex-wrap items-center mb-3">
-          <input id="gemini-key-qa" type="password" placeholder="Gemini API Key" class="field" style="max-width:280px">
+          <input id="gemini-key-qa" type="password" placeholder="API Key (boleh key1,key2,key3)" class="field" style="max-width:320px">
           <label class="flex items-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
             📄 Upload PDF
             <input type="file" accept="application/pdf" class="hidden" onchange="extractQAFromPdf(this)">
@@ -165,7 +165,7 @@
       <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
         <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan)</div>
         <div class="flex gap-2 flex-wrap items-center mb-3">
-          <input id="gemini-key-input" type="password" placeholder="Gemini API Key" class="field" style="max-width:280px">
+          <input id="gemini-key-input" type="password" placeholder="API Key (boleh key1,key2,key3)" class="field" style="max-width:320px">
           <label class="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
             📄 Upload PDF
             <input type="file" accept="application/pdf" class="hidden" onchange="extractFromPdf(this)">
@@ -898,30 +898,31 @@ document.addEventListener('paste', e => {
 });
 
 // ── PDF EXTRACTION ─────────────────────────────────────────────────
-async function geminiRequest(key, parts, retries=4) {
+async function geminiRequest(keyInput, parts) {
+  const keys = String(keyInput).split(',').map(k=>k.trim()).filter(Boolean);
+  if (!keys.length) return { error: 'No API key provided' };
   let lastErr = '';
-  for (let attempt=0; attempt<=retries; attempt++) {
-    if (attempt > 0) {
-      const delay = Math.min(10000 * attempt, 25000);
-      await new Promise(r => setTimeout(r, delay));
+  for (let round=0; round<3; round++) {
+    if (round > 0) await new Promise(r => setTimeout(r, 12000));
+    for (const key of keys) {
+      try {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+          { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts}]}) }
+        );
+        const result = await resp.json();
+        if (result.error) {
+          lastErr = result.error.message;
+          const msg = (result.error.message||'').toLowerCase();
+          const isRetryable = result.error.code===429 || result.error.code===503 ||
+            msg.includes('quota') || msg.includes('rate') || msg.includes('demand') ||
+            msg.includes('overload') || msg.includes('busy') || msg.includes('capacity');
+          if (isRetryable) continue;
+          return { error: lastErr };
+        }
+        return result;
+      } catch(e) { lastErr = e.message; }
     }
-    try {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-        { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts}]}) }
-      );
-      const result = await resp.json();
-      if (result.error) {
-        lastErr = result.error.message;
-        const msg = (result.error.message||'').toLowerCase();
-        const isRetryable = result.error.code===429 || result.error.code===503 ||
-          msg.includes('quota') || msg.includes('rate') || msg.includes('demand') ||
-          msg.includes('overload') || msg.includes('busy') || msg.includes('capacity');
-        if (isRetryable && attempt < retries) continue;
-        return { error: lastErr };
-      }
-      return result;
-    } catch(e) { lastErr = e.message; }
   }
   return { error: lastErr };
 }
