@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StudyNest SPM — Papers, Books & Careers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID"
+    };
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    window._login  = async () => { try { await signInWithPopup(auth, provider); } catch(e){} };
+    window._logout = async () => { await signOut(auth); };
+    window._getUid = () => auth.currentUser?.uid || null;
+    window._hasPurchased = async (itemId) => {
+      if (!auth.currentUser) return false;
+      const snap = await getDoc(doc(db, 'purchases', auth.currentUser.uid));
+      return snap.exists() && !!snap.data()[itemId];
+    };
+
+    onAuthStateChanged(auth, async user => {
+      let premium = false;
+      if (user) {
+        const snap = await getDoc(doc(db, 'members', user.uid));
+        premium = snap.exists() && snap.data().active === true;
+      }
+      window._onAuth(user, premium);
+    });
+  </script>
+
+  <style>
+    :root {
+      --green:   #4B7A5C;
+      --green-l: #7CB9A0;
+      --sage:    #E8F2EC;
+      --cream:   #FEF9F3;
+      --amber:   #C17D4B;
+      --amber-l: #FDEFD8;
+      --sky:     #E8F3FC;
+      --sky-d:   #4A8BB5;
+      --text:    #1C2B22;
+      --muted:   #6B7F72;
+    }
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #F7FAF7; color: var(--text); }
+    .serif { font-family: 'DM Serif Display', serif; }
+    .fade  { animation: fadeUp .2s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+    /* Nav pills */
+    .nav-pill { padding: 6px 16px; border-radius: 99px; font-size:.8rem; font-weight:600; transition:.15s; cursor:pointer; }
+    .nav-active { background:var(--green); color:#fff; }
+    .nav-idle   { color:var(--muted); }
+    .nav-idle:hover { background:var(--sage); color:var(--green); }
+
+    /* Year pills */
+    .yr-on  { background:var(--green); color:#fff; }
+    .yr-off { background:#EEF2EE; color:var(--muted); }
+    .yr-off:hover { background:var(--sage); }
+
+    /* Buttons */
+    .btn-primary  { background:var(--green); color:#fff; }
+    .btn-primary:hover { background:#3d6a4e; }
+    .btn-amber { background:var(--amber); color:#fff; }
+    .btn-amber:hover { background:#a86a3c; }
+    .btn-outline { border:1.5px solid var(--green); color:var(--green); }
+    .btn-outline:hover { background:var(--sage); }
+
+    /* Paper buttons */
+    .tag-s { background:#DBEAFE; color:#1D4ED8; }
+    .tag-j { background:#D1FAE5; color:#065F46; }
+    .tag-x { background:#FEF3C7; color:#92400E; }
+    .tag-s:hover { background:#BFDBFE; }
+    .tag-j:hover { background:#A7F3D0; }
+    .tag-x:hover { background:#FDE68A; }
+
+    /* Cards */
+    .card { background:#fff; border:1px solid #E4EDE6; border-radius:16px; transition:.15s; }
+    .card:hover { box-shadow:0 6px 24px rgba(75,122,92,.12); transform:translateY(-2px); }
+
+    /* Cart badge */
+    .cart-badge { background:var(--amber); color:#fff; font-size:.65rem; font-weight:800;
+      width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      position:absolute; top:-5px; right:-5px; }
+
+    /* Premium viewer */
+    #viewer-frame { border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ════════════════════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════════════════ -->
+<header class="bg-white/90 backdrop-blur sticky top-0 z-50 border-b border-green-100">
+  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+
+    <!-- Logo -->
+    <button onclick="nav('home')" class="flex items-center gap-2 shrink-0">
+      <img src="logo.png" class="w-8 h-8 rounded-xl object-cover"/>
+      <span class="font-bold text-base" style="color:var(--text)">StudyNest</span>
+    </button>
+
+    <!-- Nav (desktop) -->
+    <nav class="hidden md:flex items-center gap-1">
+      <button onclick="nav('home')"       class="nav-pill nav-idle" id="n-home">Home</button>
+      <button onclick="nav('papers')"    class="nav-pill nav-idle" id="n-papers">Trial Papers</button>
+      <button onclick="nav('premium')"   class="nav-pill nav-idle" id="n-premium">⭐ Premium</button>
+      <button onclick="nav('collection')" class="nav-pill nav-idle" id="n-collection">📦 Collection</button>
+      <button onclick="nav('books')"     class="nav-pill nav-idle" id="n-books">📚 Books</button>
+      <button onclick="nav('careers')"   class="nav-pill nav-idle" id="n-careers">🎓 Careers</button>
+    </nav>
+
+    <!-- Auth + Cart -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Cart -->
+      <button onclick="nav('cart')" class="relative p-2 rounded-xl hover:bg-green-50 transition-colors" id="cart-btn" style="display:none">
+        <svg class="w-5 h-5" style="color:var(--green)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.6 8H19M7 13l-2-8m5 8v6m4-6v6"/>
+        </svg>
+        <span class="cart-badge" id="cart-count" style="display:none">0</span>
+      </button>
+
+      <!-- Logged out -->
+      <button id="btn-login" onclick="window._login()"
+        class="hidden items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl border transition-colors btn-outline">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-3.5 h-3.5"/>
+        Sign in
+      </button>
+
+      <!-- Logged in -->
+      <div id="user-chip" class="hidden items-center gap-2">
+        <img id="user-avatar" src="" class="w-8 h-8 rounded-full border-2 border-green-200" alt=""/>
+        <span id="badge-prem" class="hidden text-xs font-bold px-2 py-0.5 rounded-full"
+          style="background:var(--amber-l);color:var(--amber)">⭐ Premium</span>
+        <button onclick="window._logout()" class="text-xs hover:underline" style="color:var(--muted)">Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════════
+     HOME
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-home">
+
+  <!-- Hero -->
+  <section style="background:linear-gradient(135deg,#E8F5EC 0%,#F7FAF7 50%,#FEF9F3 100%)"
+    class="py-20 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <div class="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-5"
+        style="background:var(--sage);color:var(--green)">SPM Trial Papers · Malaysia</div>
+      <h1 class="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight serif" style="color:var(--text)">
+        Your quiet corner<br/>for SPM prep
+      </h1>
+      <p style="color:var(--muted)" class="text-lg mb-8 max-w-xl mx-auto">
+        Free trial papers from every state, premium merged study guides,<br class="hidden sm:block"/>
+        physical books, and career insights — all in one place.
+      </p>
+      <div class="flex flex-wrap gap-3 justify-center">
+        <button onclick="nav('papers')"
+          class="btn-primary font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+          Browse Trial Papers →
+        </button>
+        <button onclick="nav('premium')"
+          class="btn-amber font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+          ⭐ Premium Access
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick links -->
+  <section class="max-w-6xl mx-auto px-4 py-12">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <button onclick="nav('papers')" class="card p-5 text-left hover:border-green-300">
+        <div class="text-3xl mb-3">📄</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">Trial Papers</div>
+        <div class="text-xs" style="color:var(--muted)">2023–2025 · All states · Free</div>
+      </button>
+      <button onclick="nav('premium')" class="card p-5 text-left hover:border-amber-200">
+        <div class="text-3xl mb-3">⭐</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">Premium Guides</div>
+        <div class="text-xs" style="color:var(--muted)">Q+A merged · Online viewer</div>
+      </button>
+      <button onclick="nav('collection')" class="card p-5 text-left hover:border-blue-200">
+        <div class="text-3xl mb-3">📦</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">Collection</div>
+        <div class="text-xs" style="color:var(--muted)">RM1.99 each · Online view</div>
+      </button>
+      <button onclick="nav('books')" class="card p-5 text-left hover:border-amber-200">
+        <div class="text-3xl mb-3">📚</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">Physical Books</div>
+        <div class="text-xs" style="color:var(--muted)">Order with TNG / FPX</div>
+      </button>
+      <button onclick="nav('careers')" class="card p-5 text-left hover:border-sky-200">
+        <div class="text-3xl mb-3">🎓</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">Career Paths</div>
+        <div class="text-xs" style="color:var(--muted)">What can I do with this subject?</div>
+      </button>
+    </div>
+  </section>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     TRIAL PAPERS
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-papers" class="hidden">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">SPM Trial Papers</h1>
+    <p class="text-sm mb-6" style="color:var(--muted)">Free download — Soalan & Skema Jawapan dari semua negeri</p>
+
+    <!-- Subject tabs -->
+    <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+      <button onclick="setSubject('sejarah')" id="sub-sejarah"
+        class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📜 Sejarah</button>
+      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">🧮 Matematik</button>
+      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">🔬 Sains</button>
+      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">📝 BM</button>
+    </div>
+
+    <!-- Year + Search row -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div id="yr-tabs" class="flex gap-2">
+        <button onclick="setYear(2025)" id="yr-2025" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2025</button>
+        <button onclick="setYear(2024)" id="yr-2024" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2024</button>
+        <button onclick="setYear(2023)" id="yr-2023" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2023</button>
+      </div>
+      <div class="relative flex-1 max-w-xs">
+        <input id="search" type="text" placeholder="Cari negeri…" oninput="renderPapers()"
+          class="w-full border border-green-100 bg-white rounded-xl px-4 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"/>
+        <svg class="absolute left-3 top-2.5 w-4 h-4" style="color:var(--muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+    </div>
+
+    <div id="papers-grid" class="fade"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     PREMIUM
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-premium" class="hidden">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color:var(--amber)">⭐ Premium</div>
+    <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">Soalan + Jawapan — Merged Study Guides</h1>
+    <p class="text-sm mb-8" style="color:var(--muted)">
+      Questions and answers combined in one document, organised by sub-question.<br/>
+      Viewable online only — content is protected.
+    </p>
+
+    <!-- Not logged in -->
+    <div id="gate-login" class="hidden">
+      <div class="card p-10 text-center max-w-sm mx-auto">
+        <div class="text-5xl mb-4">🔒</div>
+        <h2 class="font-bold text-lg mb-2">Sign in to continue</h2>
+        <p class="text-sm mb-5" style="color:var(--muted)">Log in with your Google account to access or purchase premium content.</p>
+        <button onclick="window._login()"
+          class="w-full btn-primary font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-4 h-4 invert"/>
+          Continue with Google
+        </button>
+      </div>
+    </div>
+
+    <!-- Logged in, not premium -->
+    <div id="gate-buy" class="hidden">
+      <div class="grid md:grid-cols-2 gap-8 items-start">
+        <div>
+          <h2 class="text-xl font-bold mb-3" style="color:var(--text)">Get Premium Access</h2>
+          <ul class="space-y-2.5 text-sm mb-6">
+            <li class="flex gap-2"><span style="color:var(--green)">✓</span><span>Sejarah Q+A merged — all states, 2023–2025</span></li>
+            <li class="flex gap-2"><span style="color:var(--green)">✓</span><span>More subjects added progressively</span></li>
+            <li class="flex gap-2"><span style="color:var(--green)">✓</span><span>Organised by sub-question: 1(a), 1(b), 1(c)…</span></li>
+            <li class="flex gap-2"><span style="color:var(--green)">✓</span><span>Online viewer — read anytime on any device</span></li>
+            <li class="flex gap-2"><span style="color:var(--green)">✓</span><span>Lifetime access — one-time payment</span></li>
+          </ul>
+          <div class="flex items-end gap-3 mb-5">
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM 9.90</span>
+            <span class="line-through text-lg" style="color:#ccc">RM 29.90</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">-67%</span>
+          </div>
+          <a href="#" id="btn-buy"
+            class="btn-amber inline-block font-bold px-8 py-3 rounded-xl text-sm transition-colors">
+            Buy Now — RM 9.90
+          </a>
+          <p class="text-xs mt-2" style="color:var(--muted)">TNG eWallet · FPX · Debit/Credit via Billplz</p>
+        </div>
+        <!-- Preview mockup -->
+        <div class="card p-5 select-none relative overflow-hidden">
+          <div class="blur-sm pointer-events-none space-y-3 text-sm">
+            <div class="font-bold" style="color:var(--sky-d)">Sejarah 2025 Kedah</div>
+            <div class="h-2 bg-gray-100 rounded w-full"></div>
+            <div class="h-2 bg-gray-100 rounded w-4/5"></div>
+            <div class="font-semibold text-gray-600 mt-2">Soalan 1(a)</div>
+            <div class="h-2 bg-gray-50 rounded w-full"></div>
+            <div class="h-2 bg-gray-50 rounded w-3/4"></div>
+            <div class="border-t pt-2 mt-2">
+              <div class="font-semibold text-xs" style="color:#BB0000">▌ Jawapan 1(A)</div>
+              <div class="h-2 rounded w-full mt-1" style="background:var(--sky)"></div>
+              <div class="h-2 rounded w-5/6 mt-1" style="background:var(--sky)"></div>
+            </div>
+          </div>
+          <div class="absolute inset-0 flex flex-col items-center justify-center"
+            style="background:rgba(255,255,255,.5);backdrop-filter:blur(2px)">
+            <span class="text-2xl mb-1">🔒</span>
+            <span class="text-xs font-semibold" style="color:var(--muted)">Premium only</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Premium content -->
+    <div id="prem-content" class="hidden">
+      <div class="rounded-2xl p-4 mb-6 flex items-center gap-3 text-sm"
+        style="background:var(--amber-l);border:1px solid #F0C89A">
+        <span class="text-xl">⭐</span>
+        <div><span class="font-bold" style="color:var(--amber)">Welcome back!</span>
+          <span style="color:#7A5030"> You have full access to all premium content.</span></div>
+      </div>
+
+      <!-- Subject selector for premium -->
+      <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+        <button onclick="setPremSubject('sejarah')" id="ps-sejarah"
+          class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap">📜 Sejarah</button>
+        <button class="yr-off opacity-40 cursor-not-allowed px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap">🧮 Matematik (soon)</button>
+      </div>
+
+      <!-- Viewer area -->
+      <div id="prem-viewer">
+        <p class="text-sm mb-4" style="color:var(--muted)">Select a state to read online:</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="prem-grid">
+          <!-- populated by JS -->
+        </div>
+        <!-- Inline viewer -->
+        <div id="viewer-wrap" class="hidden mt-6">
+          <div class="flex items-center justify-between mb-2">
+            <span id="viewer-title" class="font-semibold text-sm" style="color:var(--text)"></span>
+            <button onclick="closeViewer()" class="text-xs px-3 py-1 rounded-lg btn-outline transition-colors">← Back</button>
+          </div>
+          <div id="viewer-frame" class="w-full bg-gray-100" style="height:75vh">
+            <iframe id="prem-iframe" src="" class="w-full h-full border-0"
+              allow="autoplay"
+              oncontextmenu="return false"></iframe>
+          </div>
+          <p class="text-xs text-center mt-2" style="color:var(--muted)">
+            🔒 This document is view-only and cannot be downloaded.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     BOOKS
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-books" class="hidden">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">📚 Physical Books</h1>
+    <p class="text-sm mb-8" style="color:var(--muted)">Order online — delivery to your doorstep. Pay via TNG / FPX / Card.</p>
+
+    <p class="text-xs mb-4 font-medium" style="color:var(--muted)">Soalan Percubaan SPM 2024 — Kertas 2 · Semua Negeri · Skema Jawapan Disertakan</p>
+
+    <!-- Book grid -->
+    <div id="book-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--amber-l),#FBDBB5)">📜</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--amber)">Sejarah</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 34.90</span>
+            <button onclick="addToCart({id:'b-sejarah',name:'Sejarah K2 2024',price:34.90})"
+              class="btn-amber text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--amber-l),#FBDBB5)">🧮</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--amber)">Mathematics</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 32.90</span>
+            <button onclick="addToCart({id:'b-math',name:'Mathematics K2 2024',price:32.90})"
+              class="btn-amber text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--amber-l),#FDE8C4)">📐</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--amber)">Add Mathematics</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 22.90</span>
+            <button onclick="addToCart({id:'b-addmath',name:'Add Mathematics K2 2024',price:22.90})"
+              class="btn-amber text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sage),#C8E6D0)">🔬</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--green)">Science</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 22.90</span>
+            <button onclick="addToCart({id:'b-sains',name:'Science K2 2024',price:22.90})"
+              class="btn-primary text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sage),#B8E0C8)">⚗️</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--green)">Chemistry</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 26.60</span>
+            <button onclick="addToCart({id:'b-chem',name:'Chemistry K2 2024',price:26.60})"
+              class="btn-primary text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sage),#C8E6D0)">🧬</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--green)">Biology</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 19.90</span>
+            <button onclick="addToCart({id:'b-bio',name:'Biology K2 2024',price:19.90})"
+              class="btn-primary text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sky),#C2DEF2)">⚡</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--sky-d)">Physics</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 18.80</span>
+            <button onclick="addToCart({id:'b-physics',name:'Physics K2 2024',price:18.80})"
+              style="background:var(--sky-d);color:#fff" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sky),#D0E8F5)">📝</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--sky-d)">Bahasa Melayu</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 21.90</span>
+            <button onclick="addToCart({id:'b-bm',name:'Bahasa Melayu K2 2024',price:21.90})"
+              style="background:var(--sky-d);color:#fff" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sage),#D2E8D8)">📊</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--green)">Perakaunan</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 21.90</span>
+            <button onclick="addToCart({id:'b-akuan',name:'Perakaunan K2 2024',price:21.90})"
+              class="btn-primary text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sky),#C8DFF0)">📈</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--sky-d)">Ekonomi</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 16.60</span>
+            <button onclick="addToCart({id:'b-eko',name:'Ekonomi K2 2024',price:16.60})"
+              style="background:var(--sky-d);color:#fff" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="h-28 flex items-center justify-center text-4xl select-none"
+          style="background:linear-gradient(135deg,var(--sage),#C8E0D0)">💼</div>
+        <div class="p-4">
+          <div class="text-xs font-bold uppercase tracking-wide mb-1" style="color:var(--green)">Perniagaan</div>
+          <h3 class="font-bold text-sm mb-1" style="color:var(--text)">Percubaan SPM 2024 — Kertas 2</h3>
+          <p class="text-xs mb-3" style="color:var(--muted)">Semua negeri · Skema jawapan lengkap</p>
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-base" style="color:var(--text)">RM 18.80</span>
+            <button onclick="addToCart({id:'b-perniagaan',name:'Perniagaan K2 2024',price:18.80})"
+              class="btn-primary text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     COLLECTION
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-collection" class="hidden">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color:var(--sky-d)">📦 Collection</div>
+    <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">Koleksi Kertas Percubaan SPM</h1>
+    <p class="text-sm mb-6" style="color:var(--muted)">
+      Setiap set RM 1.99 · Lihat online sahaja · Koleksi percubaan semua negeri mengikut tahun &amp; subjek
+    </p>
+
+    <!-- Year filter -->
+    <div class="flex flex-wrap gap-2 mb-4">
+      <span class="text-xs font-semibold self-center" style="color:var(--muted)">Tahun:</span>
+      <button onclick="setCollYear('all')" id="cy-all" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Semua</button>
+      <button onclick="setCollYear(2024)"  id="cy-2024" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2024</button>
+      <button onclick="setCollYear(2023)"  id="cy-2023" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2023</button>
+      <button onclick="setCollYear(2022)"  id="cy-2022" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2022</button>
+      <button onclick="setCollYear(2021)"  id="cy-2021" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2021</button>
+    </div>
+
+    <!-- Subject filter -->
+    <div id="coll-subj-filter" class="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-1"></div>
+
+    <!-- Grid -->
+    <div id="coll-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 fade"></div>
+
+    <!-- Unified viewer (preview + full mode) -->
+    <div id="coll-viewer-wrap" class="hidden mt-8">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="coll-viewer-title" class="font-bold text-sm" style="color:var(--text)"></span>
+          <span id="coll-badge-preview" class="text-xs px-2 py-0.5 rounded-full font-semibold"
+            style="background:#FEF3C7;color:#92400E">🔓 Pratonton percuma</span>
+          <span id="coll-badge-full" class="hidden text-xs px-2 py-0.5 rounded-full font-semibold"
+            style="background:var(--sky);color:var(--sky-d)">✅ Akses penuh</span>
+        </div>
+        <button onclick="closeCollViewer()" class="text-xs px-3 py-1.5 rounded-lg btn-outline transition-colors shrink-0">← Back</button>
+      </div>
+
+      <!-- iframe container — height set by JS (preview=700px, full=78vh) -->
+      <div id="coll-iframe-box" style="position:relative;border-radius:12px;overflow:hidden;
+        box-shadow:0 8px 32px rgba(0,0,0,.12);height:700px;transition:height .3s ease">
+        <iframe id="coll-iframe" src="" class="w-full h-full border-0"
+          allow="autoplay"
+          oncontextmenu="return false"></iframe>
+
+        <!-- Top shield: covers Drive download toolbar -->
+        <div style="position:absolute;top:0;left:0;right:0;height:64px;z-index:20;pointer-events:all"></div>
+
+        <!-- Bottom preview overlay — visible in preview mode -->
+        <div id="coll-preview-overlay"
+          style="position:absolute;bottom:0;left:0;right:0;height:220px;z-index:15;
+            background:linear-gradient(to bottom, transparent 0%, rgba(247,250,247,.97) 55%);
+            display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+            padding-bottom:22px;gap:8px">
+          <p class="text-xs font-semibold" style="color:var(--muted)">— Pratonton percuma berakhir di sini —</p>
+          <button id="coll-unlock-btn" onclick="unlockCollFull()"
+            class="btn-amber font-bold px-7 py-2.5 rounded-xl text-sm transition-colors shadow-lg">
+            🔓 Buka Dokumen Penuh — RM 1.99
+          </button>
+          <p class="text-xs" style="color:var(--muted)">Bayaran sekali · Lihat bila-bila masa</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-center mt-2" style="color:var(--muted)">🔒 Dokumen ini hanya boleh dilihat dan tidak boleh dimuat turun.</p>
+    </div>
+
+    <!-- Login gate (shown as overlay card below viewer/grid) -->
+    <div id="coll-gate-login" class="hidden mt-6">
+      <div class="card p-8 text-center max-w-sm mx-auto">
+        <div class="text-4xl mb-3">🔒</div>
+        <h2 class="font-bold text-base mb-2">Log masuk untuk teruskan</h2>
+        <p class="text-sm mb-4" style="color:var(--muted)">Daftar masuk dengan Google untuk membeli &amp; melihat dokumen penuh.</p>
+        <button onclick="window._login()"
+          class="w-full btn-primary font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-4 h-4 invert"/>
+          Continue with Google
+        </button>
+        <button onclick="closeCollGate()" class="text-xs mt-3 block mx-auto" style="color:var(--muted)">← Kembali</button>
+      </div>
+    </div>
+
+    <!-- Buy gate -->
+    <div id="coll-gate-buy" class="hidden mt-6">
+      <div class="card p-8 text-center max-w-sm mx-auto">
+        <div class="text-4xl mb-3">📦</div>
+        <div id="coll-buy-title" class="font-bold text-base mb-1" style="color:var(--text)"></div>
+        <p class="text-sm mb-1" style="color:var(--muted)">Pembelian sekali · Akses seumur hidup.</p>
+        <div class="text-2xl font-extrabold my-3" style="color:var(--text)">RM 1.99</div>
+        <button id="coll-buy-btn"
+          class="w-full btn-amber font-bold py-2.5 rounded-xl text-sm transition-colors">
+          Beli &amp; Buka Penuh — RM 1.99
+        </button>
+        <p class="text-xs mt-2" style="color:var(--muted)">TNG · FPX · Debit/Kredit via Billplz</p>
+        <button onclick="closeCollGate()" class="text-xs mt-3 block mx-auto" style="color:var(--muted)">← Kembali ke pratonton</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     CART
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-cart" class="hidden">
+  <div class="max-w-3xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6" style="color:var(--text)">🛒 Your Cart</h1>
+
+    <div class="grid md:grid-cols-5 gap-6">
+      <!-- Order summary -->
+      <div class="md:col-span-2">
+        <div class="card p-4 mb-4">
+          <h2 class="font-bold text-sm mb-3" style="color:var(--text)">Order Summary</h2>
+          <div id="cart-items" class="space-y-2 text-sm"></div>
+          <div class="border-t mt-3 pt-3 flex justify-between font-bold" style="color:var(--text)">
+            <span>Total</span><span id="cart-total">RM 0.00</span>
+          </div>
+        </div>
+        <button onclick="checkout()"
+          class="btn-primary w-full font-bold py-3 rounded-xl text-sm transition-colors">
+          Pay with TNG / FPX / Card →
+        </button>
+        <p class="text-xs text-center mt-2" style="color:var(--muted)">Powered by Billplz</p>
+      </div>
+
+      <!-- Shipping form -->
+      <div class="md:col-span-3">
+        <div class="card p-5">
+          <h2 class="font-bold text-sm mb-4" style="color:var(--text)">Delivery Details</h2>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs font-semibold block mb-1" style="color:var(--muted)">Full Name *</label>
+              <input id="f-name" type="text" placeholder="Nama penuh"
+                class="w-full border border-green-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"/>
+            </div>
+            <div>
+              <label class="text-xs font-semibold block mb-1" style="color:var(--muted)">Phone Number *</label>
+              <input id="f-phone" type="tel" placeholder="01X-XXXXXXX"
+                class="w-full border border-green-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"/>
+            </div>
+            <div>
+              <label class="text-xs font-semibold block mb-1" style="color:var(--muted)">Email *</label>
+              <input id="f-email" type="email" placeholder="email@gmail.com"
+                class="w-full border border-green-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"/>
+            </div>
+            <div>
+              <label class="text-xs font-semibold block mb-1" style="color:var(--muted)">Delivery Address *</label>
+              <textarea id="f-addr" rows="3" placeholder="No. Rumah, Jalan, Taman, Poskod, Negeri"
+                class="w-full border border-green-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 resize-none"></textarea>
+            </div>
+            <div>
+              <label class="text-xs font-semibold block mb-1" style="color:var(--muted)">Notes (optional)</label>
+              <input id="f-note" type="text" placeholder="e.g. Leave at door"
+                class="w-full border border-green-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"/>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     CAREERS
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-careers" class="hidden">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="text-xs font-bold uppercase tracking-widest mb-1" style="color:var(--sky-d)">🎓 Explore</div>
+    <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">What Can You Become?</h1>
+    <p class="text-sm mb-8" style="color:var(--muted)">
+      Discover the career paths that your SPM subjects can open up for you.
+    </p>
+
+    <div class="space-y-6">
+
+      <!-- Sejarah -->
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="text-2xl">📜</div>
+          <div>
+            <div class="font-bold text-base" style="color:var(--text)">Sejarah <span class="text-sm font-normal" style="color:var(--muted)">(History)</span></div>
+            <div class="text-xs" style="color:var(--muted)">Tingkatan 1–5 · SPM compulsory subject</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Historian</div>
+            <div class="text-xs" style="color:var(--muted)">Research & academia</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Educator / Teacher</div>
+            <div class="text-xs" style="color:var(--muted)">School or university</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Archivist</div>
+            <div class="text-xs" style="color:var(--muted)">Arkib Negara Malaysia</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Museum Curator</div>
+            <div class="text-xs" style="color:var(--muted)">Cultural heritage</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Lawyer / Legal</div>
+            <div class="text-xs" style="color:var(--muted)">via Law degree</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Journalist</div>
+            <div class="text-xs" style="color:var(--muted)">Media & publishing</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Civil Servant</div>
+            <div class="text-xs" style="color:var(--muted)">Government & policy</div>
+          </div>
+          <div class="career-chip" style="background:var(--sage)">
+            <div class="font-semibold text-xs" style="color:var(--green)">Archaeologist</div>
+            <div class="text-xs" style="color:var(--muted)">Heritage research</div>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-green-50">
+          <p class="text-xs" style="color:var(--muted)">
+            <span class="font-semibold">Pathway tip:</span> Strong Sejarah grades open doors to
+            <span class="font-medium" style="color:var(--green)">Law, Political Science, International Relations, and Education</span> degrees at local and overseas universities.
+          </p>
+        </div>
+      </div>
+
+      <!-- Matematik -->
+      <div class="card p-6 opacity-60">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="text-2xl">🧮</div>
+          <div>
+            <div class="font-bold text-base" style="color:var(--text)">Matematik / Add Math</div>
+            <div class="text-xs" style="color:var(--muted)">Content coming soon</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sains -->
+      <div class="card p-6 opacity-60">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="text-2xl">🔬</div>
+          <div>
+            <div class="font-bold text-base" style="color:var(--text)">Sains / Physics / Chemistry / Biology</div>
+            <div class="text-xs" style="color:var(--muted)">Content coming soon</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     JS
+════════════════════════════════════════════════════════════════ -->
+<script src="data.js"></script>
+<script src="collection.js"></script>
+<style>
+  .career-chip { padding:8px 10px; border-radius:10px; }
+</style>
+<script>
+/* ── Auth ──────────────────────────────────────────────────────── */
+let currentUser = null, userPremium = false;
+
+window._onAuth = function(user, premium) {
+  currentUser = user; userPremium = premium;
+  const btnLogin  = document.getElementById('btn-login');
+  const userChip  = document.getElementById('user-chip');
+  const badgePrem = document.getElementById('badge-prem');
+  if (user) {
+    btnLogin.classList.add('hidden'); btnLogin.classList.remove('flex');
+    userChip.classList.remove('hidden'); userChip.classList.add('flex');
+    document.getElementById('user-avatar').src = user.photoURL||'';
+    if (premium) badgePrem.classList.remove('hidden');
+  } else {
+    btnLogin.classList.remove('hidden'); btnLogin.classList.add('flex');
+    userChip.classList.add('hidden'); userChip.classList.remove('flex');
+    badgePrem.classList.add('hidden');
+  }
+  if (document.getElementById('pg-premium').style.display!=='none' ||
+      !document.getElementById('pg-premium').classList.contains('hidden'))
+    updatePremGate();
+};
+
+function updatePremGate() {
+  ['gate-login','gate-buy','prem-content'].forEach(id =>
+    document.getElementById(id).classList.add('hidden'));
+  if (!currentUser) document.getElementById('gate-login').classList.remove('hidden');
+  else if (!userPremium) document.getElementById('gate-buy').classList.remove('hidden');
+  else { document.getElementById('prem-content').classList.remove('hidden'); renderPremGrid(); }
+}
+
+/* ── Navigation ───────────────────────────────────────────────── */
+const PAGES = ['home','papers','premium','collection','books','cart','careers'];
+
+function nav(page) {
+  PAGES.forEach(p => {
+    const el = document.getElementById('pg-'+p);
+    if (el) el.classList.toggle('hidden', p !== page);
+  });
+  PAGES.forEach(p => {
+    const n = document.getElementById('n-'+p);
+    if (n) n.classList.toggle('nav-active', p===page);
+    if (n) n.classList.toggle('nav-idle',   p!==page);
+  });
+  window.scrollTo(0,0);
+  if (page==='premium')    updatePremGate();
+  if (page==='papers')     renderPapers();
+  if (page==='collection') renderCollection();
+  if (page==='cart')       renderCart();
+  document.getElementById('cart-btn').style.display = cart.length && page!=='cart' ? 'block' : 'none';
+}
+
+/* ── Papers ────────────────────────────────────────────────────── */
+let activeYear=2025;
+const REGION_ORDER=['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan',
+  'Pahang','Perak','Perlis','Pulau Pinang','Sabah','Sarawak',
+  'Selangor','Terengganu','WP','Kebangsaan'];
+const REGION_LABELS={'WP':'Wilayah Persekutuan','Kebangsaan':'Sekolah Kebangsaan / Nasional'};
+
+function setSubject(s) {}  // expand later
+function setYear(y) {
+  activeYear=y;
+  [2025,2024,2023].forEach(yr => {
+    document.getElementById('yr-'+yr).className =
+      'transition-all px-4 py-1.5 rounded-full text-sm font-semibold ' +
+      (yr===y ? 'yr-on' : 'yr-off');
+  });
+  renderPapers();
+}
+
+function renderPapers() {
+  const q=(document.getElementById('search').value||'').toLowerCase().trim();
+  const sub=PAPERS.filter(p=>p.year===activeYear &&
+    (!q||p.state.toLowerCase().includes(q)||p.region.toLowerCase().includes(q)));
+  const byR={};
+  for (const p of sub) {
+    if(!byR[p.region]) byR[p.region]={};
+    if(!byR[p.region][p.state]) byR[p.region][p.state]=[];
+    byR[p.region][p.state].push(p);
+  }
+  const g=document.getElementById('papers-grid');
+  if(!Object.keys(byR).length){g.innerHTML='<p class="text-center py-16" style="color:var(--muted)">No results.</p>';return;}
+  let html='<div class="fade">';
+  for (const region of REGION_ORDER) {
+    if(!byR[region]) continue;
+    html+=`<div class="mb-8">
+      <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:var(--muted)">${REGION_LABELS[region]||region}</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">`;
+    for(const [s,f] of Object.entries(byR[region]).sort(([a],[b])=>a.localeCompare(b)))
+      html+=stateCard(s,f);
+    html+='</div></div>';
+  }
+  html+='</div>';
+  g.innerHTML=html;
+}
+
+function stateCard(state,papers) {
+  const isCombo=p=>/kertas\s*1\s*[&+]\s*2/i.test(p.label);
+  const combos=papers.filter(isCombo);
+  const singles=papers.filter(p=>!isCombo(p));
+  const kMap={};
+  for(const p of singles){
+    const m=p.label.match(/Kertas\s*(\d+)/i);if(!m)continue;
+    const k='Kertas '+m[1];
+    if(!kMap[k])kMap[k]={soalan:null,jawapan:[]};
+    if(p.jawapan)kMap[k].jawapan.push(p);else kMap[k].soalan=p;
+  }
+  let rows='';
+  for(const [k,f] of Object.entries(kMap).sort()){
+    rows+=`<div class="flex items-center justify-between py-2 border-b last:border-0" style="border-color:#EEF4EF">
+      <span class="text-sm font-medium" style="color:var(--text)">${k}</span>
+      <div class="flex gap-1.5 flex-wrap justify-end">`;
+    if(f.soalan) rows+=ptag(f.soalan,'Soalan','tag-s');
+    for(const j of f.jawapan) rows+=ptag(j,jLbl(j.label),isSpec(j.label)?'tag-x':'tag-j');
+    for(const c of combos)    rows+=ptag(c,'Jawapan (K1+K2)','tag-x');
+    rows+='</div></div>';
+  }
+  if(!Object.keys(kMap).length&&combos.length){
+    rows+=`<div class="flex items-center justify-between py-2">
+      <span class="text-sm" style="color:var(--muted)">Jawapan K1+K2</span><div class="flex gap-1.5">`;
+    for(const c of combos)rows+=ptag(c,'Muat Turun','tag-x');
+    rows+='</div></div>';
+  }
+  return `<div class="card p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <svg class="w-3.5 h-3.5 shrink-0" style="color:var(--green-l)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      <span class="font-semibold text-sm" style="color:var(--text)">${state}</span>
+    </div>${rows}</div>`;
+}
+
+function ptag(p,lbl,cls){
+  return p.url
+    ?`<a href="${p.url}" target="_blank" rel="noopener" class="${cls} text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">${lbl}</a>`
+    :`<span class="${cls} text-xs font-semibold px-2.5 py-1 rounded-full opacity-40 cursor-not-allowed">${lbl}</span>`;
+}
+function jLbl(l){return /Ralat|Pembetulan/i.test(l)?'Jawapan (Ralat)':/Penambahbaikan/i.test(l)?'Jawapan (Tambah)':'Jawapan';}
+function isSpec(l){return /Ralat|Pembetulan|Penambahbaikan/i.test(l);}
+
+/* ── Premium viewer ────────────────────────────────────────────── */
+const PREM_DOCS = {
+  sejarah: [
+    // {year:2025, state:'Kedah', url:'https://docs.google.com/document/d/YOUR_DOC_ID/preview'},
+    // Add more as you generate them
+  ]
+};
+let premSubject = 'sejarah';
+function setPremSubject(s){premSubject=s;renderPremGrid();}
+
+function renderPremGrid(){
+  const docs=PREM_DOCS[premSubject]||[];
+  const g=document.getElementById('prem-grid');
+  if(!docs.length){
+    g.innerHTML='<div class="col-span-full text-center py-8 text-sm" style="color:var(--muted)">Documents are being prepared. Check back soon!</div>';
+    return;
+  }
+  g.innerHTML=docs.map(d=>`
+    <button onclick="openViewer('${d.url}','${d.year} ${d.state}')"
+      class="card p-4 text-left hover:border-green-300">
+      <div class="font-semibold text-sm mb-1" style="color:var(--text)">${d.year} — ${d.state}</div>
+      <div class="text-xs" style="color:var(--green)">▶ Read online</div>
+    </button>`).join('');
+}
+function openViewer(url,title){
+  document.getElementById('viewer-wrap').classList.remove('hidden');
+  document.getElementById('prem-iframe').src=url;
+  document.getElementById('viewer-title').textContent=title;
+  document.getElementById('prem-grid').classList.add('hidden');
+}
+function closeViewer(){
+  document.getElementById('viewer-wrap').classList.add('hidden');
+  document.getElementById('prem-iframe').src='';
+  document.getElementById('prem-grid').classList.remove('hidden');
+}
+
+/* ── Cart ─────────────────────────────────────────────────────── */
+let cart=[];
+function addToCart(item){
+  const ex=cart.find(i=>i.id===item.id);
+  if(ex) ex.qty++;
+  else   cart.push({...item,qty:1});
+  updateCartBadge();
+  nav('cart');
+}
+function updateCartBadge(){
+  const total=cart.reduce((s,i)=>s+i.qty,0);
+  const badge=document.getElementById('cart-count');
+  const btn=document.getElementById('cart-btn');
+  if(total>0){
+    badge.textContent=total; badge.style.display='flex';
+    btn.style.display='block';
+  } else {
+    badge.style.display='none'; btn.style.display='none';
+  }
+}
+function renderCart(){
+  const el=document.getElementById('cart-items');
+  if(!cart.length){el.innerHTML='<p class="text-sm" style="color:var(--muted)">Your cart is empty.</p>';return;}
+  el.innerHTML=cart.map(i=>`
+    <div class="flex justify-between items-start">
+      <div>
+        <div class="font-medium text-xs" style="color:var(--text)">${i.name}</div>
+        <div class="text-xs" style="color:var(--muted)">Qty: ${i.qty}</div>
+      </div>
+      <div class="text-xs font-semibold">RM ${(i.price*i.qty).toFixed(2)}</div>
+    </div>`).join('');
+  const tot=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  document.getElementById('cart-total').textContent='RM '+tot.toFixed(2);
+}
+function checkout(){
+  const name=document.getElementById('f-name').value.trim();
+  const phone=document.getElementById('f-phone').value.trim();
+  const email=document.getElementById('f-email').value.trim();
+  const addr=document.getElementById('f-addr').value.trim();
+  if(!name||!phone||!email||!addr){alert('Please fill in all required fields.');return;}
+  // TODO: submit order to Billplz / backend
+  alert('Redirecting to payment...\n(Billplz integration — replace this with actual payment link)');
+}
+
+/* ── Collection ────────────────────────────────────────────────── */
+let collYear = 'all', collSubject = 'all';
+let _collCurrent = null;   // {id, title, buyTitle} of open item
+
+function setCollYear(y) {
+  collYear = y;
+  ['all',2024,2023,2022,2021].forEach(yr => {
+    const el = document.getElementById('cy-'+yr);
+    if (el) el.className = 'transition-all px-4 py-1.5 rounded-full text-sm font-semibold ' +
+      (yr === y ? 'yr-on' : 'yr-off');
+  });
+  collSubject = 'all';
+  renderCollection();
+}
+
+function renderCollection() {
+  closeCollViewer();
+  closeCollGate();
+
+  const getBase = s => { const m = s.match(/^(.+?)\s+(A|B|C)$|^(.+?)\s*\(.*\)$/); return m ? (m[1]||m[3]) : s; };
+  const items = (typeof COLLECTION !== 'undefined' ? COLLECTION : [])
+    .filter(c => collYear === 'all' || c.year === collYear)
+    .filter(c => collSubject === 'all' || getBase(c.subject) === collSubject);
+
+  const allItems = (typeof COLLECTION !== 'undefined' ? COLLECTION : [])
+    .filter(c => collYear === 'all' || c.year === collYear);
+  // Use base names for filter (strip A/B suffix)
+  const baseSubjects = [...new Set(allItems.map(c => {
+    const m = c.subject.match(/^(.+?)\s+(A|B|C)$|^(.+?)\s*\(.*\)$/);
+    return m ? (m[1] || m[3]) : c.subject;
+  }))].sort();
+  const sf = document.getElementById('coll-subj-filter');
+  sf.innerHTML = `<span class="text-xs font-semibold self-center" style="color:var(--muted)">Subjek:</span>` +
+    ['all', ...baseSubjects].map(s => `
+      <button onclick="setCollSubject('${s}')"
+        class="px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${s === collSubject ? 'yr-on' : 'yr-off'}">
+        ${s === 'all' ? 'Semua' : s}
+      </button>`).join('');
+
+  const g = document.getElementById('coll-grid');
+  if (!items.length) {
+    g.innerHTML = '<p class="col-span-full text-center py-10 text-sm" style="color:var(--muted)">Tiada item.</p>';
+    return;
+  }
+  g.innerHTML = items.map(c => {
+    // Strip trailing " A" / " B" / " (Kimia)" etc. for display name
+    const m = c.subject.match(/^(.+?)\s+(A|B|C)$|^(.+?)\s*\(.*\)$/);
+    const baseName = m ? (m[1] || m[3]) : c.subject;
+    const collLabel = m && m[2] ? m[2] : '';
+    return `
+    <div class="card p-4 text-left flex flex-col">
+      <div class="text-3xl mb-2">${c.icon}</div>
+      <div class="flex items-center gap-1.5 mb-0.5">
+        <span class="font-bold text-xs" style="color:var(--text)">${baseName}</span>
+        ${collLabel ? `<span class="text-xs px-1.5 py-0.5 rounded font-bold" style="background:var(--sage);color:var(--green);font-size:10px">${collLabel}</span>` : ''}
+      </div>
+      <div class="text-xs mb-0.5" style="color:var(--muted)">${c.year} · ${c.kertas}</div>
+      <div class="text-xs mb-3" style="color:var(--muted)">${c.desc}</div>
+      <button onclick="openCollItem('${c.id}','${c.year} ${baseName}${collLabel ? ' '+collLabel : ''} ${c.kertas}')"
+        class="mt-auto btn-amber text-xs font-bold px-3 py-1.5 rounded-lg transition-colors w-full">
+        Lihat — RM ${c.price.toFixed(2)}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function setCollSubject(s) { collSubject = s; renderCollection(); }
+
+async function openCollItem(id, title) {
+  closeCollGate();
+  _collCurrent = {id, title};
+
+  // Always show free preview first
+  showCollPreview(id, title);
+
+  // Check if already purchased → silently upgrade to full
+  const uid = window._getUid ? window._getUid() : null;
+  if (uid) {
+    const purchased = await (window._hasPurchased ? window._hasPurchased(id) : Promise.resolve(false));
+    if (purchased) setCollFull();
+  }
+}
+
+function showCollPreview(id, title) {
+  // Find the item to get its previewId (30-page version)
+  const item = (typeof COLLECTION !== 'undefined' ? COLLECTION : []).find(c => c.id === id);
+  const previewId = item && item.previewId;
+
+  document.getElementById('coll-grid').classList.add('hidden');
+  const wrap = document.getElementById('coll-viewer-wrap');
+  wrap.classList.remove('hidden');
+  document.getElementById('coll-viewer-title').textContent = title;
+  document.getElementById('coll-badge-preview').classList.remove('hidden');
+  document.getElementById('coll-badge-full').classList.add('hidden');
+  document.getElementById('coll-iframe-box').style.height = previewId ? '78vh' : '700px';
+  document.getElementById('coll-preview-overlay').style.display = 'flex';
+  // Use 30-page preview file if available, otherwise show full with gradient crop
+  document.getElementById('coll-iframe').src =
+    `https://drive.google.com/file/d/${previewId || id}/preview`;
+  wrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function setCollFull() {
+  // Expand viewer to full height, remove preview overlay
+  document.getElementById('coll-iframe-box').style.height = '78vh';
+  document.getElementById('coll-preview-overlay').style.display = 'none';
+  document.getElementById('coll-badge-preview').classList.add('hidden');
+  document.getElementById('coll-badge-full').classList.remove('hidden');
+}
+
+async function unlockCollFull() {
+  if (!_collCurrent) return;
+  const uid = window._getUid ? window._getUid() : null;
+  if (!uid) {
+    document.getElementById('coll-gate-login').classList.remove('hidden');
+    return;
+  }
+  const purchased = await (window._hasPurchased ? window._hasPurchased(_collCurrent.id) : Promise.resolve(false));
+  if (purchased) {
+    setCollFull();
+  } else {
+    document.getElementById('coll-buy-title').textContent = _collCurrent.title;
+    document.getElementById('coll-buy-btn').onclick = () => buyColl(_collCurrent.id, _collCurrent.title);
+    document.getElementById('coll-gate-buy').classList.remove('hidden');
+  }
+}
+
+function buyColl(id, title) {
+  const ref = encodeURIComponent(`coll_${id}_${window._getUid()}`);
+  const desc = encodeURIComponent(title);
+  // TODO: replace YOUR_BILLPLZ_COLLECTION_ID with actual ID
+  alert('Sediakan akaun Billplz dan gantikan baris ini dengan:\nwindow.location.href = `https://www.billplz.com/pay/YOUR_BILLPLZ_COLLECTION_ID?reference_1=' + ref + '&description=' + desc + '&amount=199`;');
+}
+
+function closeCollGate() {
+  ['coll-gate-login','coll-gate-buy'].forEach(id =>
+    document.getElementById(id).classList.add('hidden'));
+}
+
+function closeCollViewer() {
+  document.getElementById('coll-viewer-wrap').classList.add('hidden');
+  document.getElementById('coll-iframe').src = '';
+  document.getElementById('coll-grid').classList.remove('hidden');
+  _collCurrent = null;
+}
+
+// After login, retry unlock if viewer is open
+const _origOnAuth = window._onAuth;
+window._onAuth = function(user, premium) {
+  _origOnAuth && _origOnAuth(user, premium);
+  if (user && _collCurrent) unlockCollFull();
+};
+
+/* Init */
+nav('home');
+</script>
+</body>
+</html>

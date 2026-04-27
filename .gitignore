@@ -1,0 +1,7 @@
+previews/
+.drive_token.json
+.env
+__pycache__/
+*.pyc
+.DS_Store
+/tmp/
