@@ -55,6 +55,12 @@
       const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     };
+    window._loadPapers = async () => {
+      const q = query(collection(db, 'content'),
+        where('type', '==', 'paper'), where('active', '==', true));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    };
 
     onAuthStateChanged(auth, async user => {
       let premium = false;
@@ -255,12 +261,35 @@
     <p class="text-sm mb-6" style="color:var(--muted)">Free download — Soalan & Skema Jawapan dari semua negeri</p>
 
     <!-- Subject tabs -->
-    <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
-      <button onclick="setSubject('sejarah')" id="sub-sejarah"
+    <div class="flex gap-2 mb-5 overflow-x-auto pb-1" id="papers-subj-tabs">
+      <button onclick="setSubject('Sejarah')" id="sub-sejarah"
         class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📜 Sejarah</button>
-      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">🧮 Matematik</button>
-      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">🔬 Sains</button>
-      <button class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap opacity-40 cursor-not-allowed">📝 BM</button>
+      <button onclick="setSubject('BM')" id="sub-bm"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📝 BM</button>
+      <button onclick="setSubject('BI')" id="sub-bi"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🇬🇧 BI</button>
+      <button onclick="setSubject('Math')" id="sub-math"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🧮 Math</button>
+      <button onclick="setSubject('Add Math')" id="sub-add-math"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📐 Add Math</button>
+      <button onclick="setSubject('Biology')" id="sub-biology"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🧬 Bio</button>
+      <button onclick="setSubject('Chemistry')" id="sub-chemistry"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">⚗️ Chem</button>
+      <button onclick="setSubject('Physics')" id="sub-physics"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">⚡ Physics</button>
+      <button onclick="setSubject('Sains')" id="sub-sains"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🔬 Sains</button>
+      <button onclick="setSubject('P.Islam')" id="sub-p-islam"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">☪️ P.Islam</button>
+      <button onclick="setSubject('Moral')" id="sub-moral"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🕊️ Moral</button>
+      <button onclick="setSubject('Ekonomi')" id="sub-ekonomi"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📈 Ekonomi</button>
+      <button onclick="setSubject('P.Akaun')" id="sub-p-akaun"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">📊 P.Akaun</button>
+      <button onclick="setSubject('Geografi')" id="sub-geografi"
+        class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all">🗺️ Geografi</button>
     </div>
 
     <!-- Year + Search row -->
@@ -795,6 +824,20 @@
 <!-- ════════════════════════════════════════════════════════════════
      JS
 ════════════════════════════════════════════════════════════════ -->
+<!-- PDF VIEWER MODAL -->
+<div id="pdf-viewer-modal" class="hidden fixed inset-0 z-[90] flex items-center justify-center px-3 py-4"
+  style="background:rgba(0,0,0,.55)" onclick="if(event.target===this)closePdfViewer()">
+  <div class="bg-white rounded-2xl w-full max-w-4xl flex flex-col" style="height:85vh">
+    <div class="px-5 py-3 border-b border-green-100 flex items-center justify-between shrink-0">
+      <span class="font-semibold text-sm" id="pdf-viewer-title" style="color:var(--text)"></span>
+      <button onclick="closePdfViewer()" class="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center">×</button>
+    </div>
+    <iframe id="pdf-viewer-iframe" src="" class="flex-1 border-0 rounded-b-2xl"
+      allow="autoplay" oncontextmenu="return false"></iframe>
+    <p class="text-xs text-center py-2 shrink-0" style="color:var(--muted)">🔒 Dokumen ini hanya boleh dilihat dan tidak boleh dimuat turun.</p>
+  </div>
+</div>
+
 <!-- ════════════════════════════════════════════════════════════════
      REGISTRATION MODAL
 ════════════════════════════════════════════════════════════════ -->
@@ -909,101 +952,122 @@ function nav(page) {
 }
 
 /* ── Papers ────────────────────────────────────────────────────── */
-let activeYear=2025;
-const REGION_ORDER=['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan',
-  'Pahang','Perak','Perlis','Pulau Pinang','Sabah','Sarawak',
-  'Selangor','Terengganu','WP','Kebangsaan'];
-const REGION_LABELS={'WP':'Wilayah Persekutuan','Kebangsaan':'Sekolah Kebangsaan / Nasional'};
+const SUBJECTS_LIST = ['BM','BI','Math','Add Math','Sejarah','Biology','Chemistry','Physics','P.Islam','Moral','Sains','Ekonomi','P.Akaun','Geografi'];
+let _papersData = null;
+let _paperSubject = 'Sejarah';
+let activeYear = 2025;
 
-function setSubject(s) {}  // expand later
+async function loadPapersData() {
+  if (_papersData) return _papersData;
+  let attempts = 0;
+  while (!window._loadPapers && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  try { _papersData = await window._loadPapers(); }
+  catch(e) { _papersData = []; }
+  return _papersData;
+}
+
+function setSubject(s) {
+  _paperSubject = s;
+  document.querySelectorAll('[id^="sub-"]').forEach(el => {
+    el.className = el.id === 'sub-'+s.replace(/[^a-z0-9]/gi,'-').toLowerCase()
+      ? 'yr-on px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all'
+      : 'yr-off px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all';
+  });
+  renderPapers();
+}
 function setYear(y) {
-  activeYear=y;
+  activeYear = y;
   [2025,2024,2023].forEach(yr => {
-    document.getElementById('yr-'+yr).className =
-      'transition-all px-4 py-1.5 rounded-full text-sm font-semibold ' +
-      (yr===y ? 'yr-on' : 'yr-off');
+    const el = document.getElementById('yr-'+yr);
+    if (el) el.className = 'transition-all px-4 py-1.5 rounded-full text-sm font-semibold ' + (yr===y?'yr-on':'yr-off');
   });
   renderPapers();
 }
 
 async function renderPapers() {
-  await getQuizRegistry(); // preload registry
-  const q=(document.getElementById('search').value||'').toLowerCase().trim();
-  const sub=PAPERS.filter(p=>p.year===activeYear &&
-    (!q||p.state.toLowerCase().includes(q)||p.region.toLowerCase().includes(q)));
-  const byR={};
-  for (const p of sub) {
-    if(!byR[p.region]) byR[p.region]={};
-    if(!byR[p.region][p.state]) byR[p.region][p.state]=[];
-    byR[p.region][p.state].push(p);
+  const g = document.getElementById('papers-grid');
+  g.innerHTML = '<p class="text-center py-10 text-sm" style="color:var(--muted)">Memuatkan...</p>';
+  const allPapers = await loadPapersData();
+  const q = (document.getElementById('search').value||'').toLowerCase().trim();
+
+  const filtered = allPapers.filter(p =>
+    p.subject === _paperSubject &&
+    (!activeYear || p.year === activeYear) &&
+    (!q || (p.title||'').toLowerCase().includes(q))
+  ).sort((a,b) => (b.year||0)-(a.year||0) || (a.title||'').localeCompare(b.title||''));
+
+  if (!filtered.length) {
+    g.innerHTML = '<p class="text-center py-10 text-sm" style="color:var(--muted)">Tiada kertas untuk subjek dan tahun ini.</p>';
+    return;
   }
-  const g=document.getElementById('papers-grid');
-  if(!Object.keys(byR).length){g.innerHTML='<p class="text-center py-16" style="color:var(--muted)">No results.</p>';return;}
-  let html='<div class="fade">';
-  for (const region of REGION_ORDER) {
-    if(!byR[region]) continue;
-    html+=`<div class="mb-8">
-      <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:var(--muted)">${REGION_LABELS[region]||region}</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">`;
-    for(const [s,f] of Object.entries(byR[region]).sort(([a],[b])=>a.localeCompare(b)))
-      html+=stateCard(s,f,activeYear);
-    html+='</div></div>';
-  }
-  html+='</div>';
-  g.innerHTML=html;
+  g.innerHTML = `<div class="fade grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    ${filtered.map(p => paperCard(p)).join('')}
+  </div>`;
 }
 
-function stateCard(state,papers,year) {
-  const isCombo=p=>/kertas\s*1\s*[&+]\s*2/i.test(p.label);
-  const combos=papers.filter(isCombo);
-  const singles=papers.filter(p=>!isCombo(p));
-  const kMap={};
-  for(const p of singles){
-    const m=p.label.match(/Kertas\s*(\d+)/i);if(!m)continue;
-    const k='Kertas '+m[1]; const kNum=m[1];
-    if(!kMap[k])kMap[k]={soalan:null,jawapan:[],kNum};
-    if(p.jawapan)kMap[k].jawapan.push(p);else kMap[k].soalan=p;
-  }
-  let rows='';
-  for(const [k,f] of Object.entries(kMap).sort()){
-    const quiz = findQuiz(year, state, f.kNum);
-    rows+=`<div class="flex items-center justify-between py-2 border-b last:border-0" style="border-color:#EEF4EF">
-      <span class="text-sm font-medium" style="color:var(--text)">${k}</span>
-      <div class="flex gap-1.5 flex-wrap justify-end">`;
-    // Quiz button (takes priority over PDF soalan link)
-    if(quiz) {
-      const lock = quiz.access==='members' ? '🔒 ' : '';
-      rows+=`<a href="quiz.html?id=${quiz.id}" class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">🎯 ${lock}Latih</a>`;
-    } else if(f.soalan) {
-      rows+=ptag(f.soalan,'Soalan','tag-s');
+function paperCard(p) {
+  const slots = p.slots || {};
+  const SLOT_LABELS = { k1:'K1', k2:'K2', k12:'K1&2', view:'View' };
+  const isMember = p.access === 'members';
+
+  let rows = '';
+  for (const [key, lbl] of Object.entries(SLOT_LABELS)) {
+    const slot = slots[key] || {};
+    if (!slot.type || slot.type === 'none') continue;
+    const lock = isMember ? '🔒 ' : '';
+    let btn = '';
+    if (slot.type === 'quiz' && slot.quizId) {
+      btn = `<a href="quiz.html?id=${slot.quizId}"
+        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">🎯 ${lock}Latih</a>`;
+    } else if (slot.type === 'pdf' && slot.url) {
+      btn = `<button onclick="openPdfViewer('${encodeURIComponent(slot.url)}','${p.title||''} ${lbl}')"
+        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📄 ${lock}Lihat</button>`;
     }
-    for(const j of f.jawapan) rows+=ptag(j,jLbl(j.label),isSpec(j.label)?'tag-x':'tag-j');
-    for(const c of combos)    rows+=ptag(c,'Jawapan (K1+K2)','tag-x');
-    rows+='</div></div>';
+    if (!btn) continue;
+    let jawBtn = '';
+    if (key === 'k1' && slots.jaw?.url) {
+      jawBtn = `<button onclick="openPdfViewer('${encodeURIComponent(slots.jaw.url)}','Jawapan')"
+        class="tag-j text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📋 Jawapan</button>`;
+    }
+    rows += `<div class="flex items-center justify-between py-1.5 border-b last:border-0" style="border-color:#EEF4EF">
+      <span class="text-sm font-medium" style="color:var(--text)">${lbl}</span>
+      <div class="flex gap-1.5 flex-wrap justify-end">${btn}${jawBtn}</div>
+    </div>`;
   }
-  if(!Object.keys(kMap).length&&combos.length){
-    rows+=`<div class="flex items-center justify-between py-2">
-      <span class="text-sm" style="color:var(--muted)">Jawapan K1+K2</span><div class="flex gap-1.5">`;
-    for(const c of combos)rows+=ptag(c,'Muat Turun','tag-x');
-    rows+='</div></div>';
+
+  // Jawapan row if no K1 slot (standalone jawapan)
+  if (slots.jaw?.url && !slots.k1?.type) {
+    rows += `<div class="flex items-center justify-between py-1.5">
+      <span class="text-sm" style="color:var(--muted)">Jawapan</span>
+      <button onclick="openPdfViewer('${encodeURIComponent(slots.jaw.url)}','Jawapan')"
+        class="tag-j text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📋 Lihat</button>
+    </div>`;
   }
+
+  if (!rows) rows = '<div class="text-xs py-2" style="color:var(--muted)">Kandungan belum tersedia</div>';
+
   return `<div class="card p-4">
-    <div class="flex items-center gap-2 mb-2">
-      <svg class="w-3.5 h-3.5 shrink-0" style="color:var(--green-l)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-      </svg>
-      <span class="font-semibold text-sm" style="color:var(--text)">${state}</span>
-    </div>${rows}</div>`;
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-semibold text-sm" style="color:var(--text)">${p.title||'Untitled'}</span>
+      ${isMember ? '<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">⭐ Ahli</span>' : ''}
+    </div>
+    ${rows}
+  </div>`;
 }
 
-function ptag(p,lbl,cls){
-  return p.url
-    ?`<a href="${p.url}" target="_blank" rel="noopener" class="${cls} text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">${lbl}</a>`
-    :`<span class="${cls} text-xs font-semibold px-2.5 py-1 rounded-full opacity-40 cursor-not-allowed">${lbl}</span>`;
+// PDF viewer for papers
+function openPdfViewer(encodedUrl, title) {
+  const url = decodeURIComponent(encodedUrl);
+  const id = url.match(/\/d\/([^\/\?]+)/)?.[1];
+  const src = id ? `https://drive.google.com/file/d/${id}/preview` : url;
+  document.getElementById('pdf-viewer-title').textContent = title;
+  document.getElementById('pdf-viewer-iframe').src = src;
+  document.getElementById('pdf-viewer-modal').classList.remove('hidden');
 }
-function jLbl(l){return /Ralat|Pembetulan/i.test(l)?'Jawapan (Ralat)':/Penambahbaikan/i.test(l)?'Jawapan (Tambah)':'Jawapan';}
-function isSpec(l){return /Ralat|Pembetulan|Penambahbaikan/i.test(l);}
+function closePdfViewer() {
+  document.getElementById('pdf-viewer-modal').classList.add('hidden');
+  document.getElementById('pdf-viewer-iframe').src = '';
+}
 
 /* ── Notes / Guides ─────────────────────────────────────────────── */
 let _notesData = null, _notesSubject = 'all';

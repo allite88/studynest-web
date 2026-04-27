@@ -5,6 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiz – StudyNest</title>
 <script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Firebase — load quiz from Firestore -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
+    authDomain: "allite-platform.firebaseapp.com",
+    projectId: "allite-platform",
+    storageBucket: "allite-platform.firebasestorage.app",
+    messagingSenderId: "989451608043",
+    appId: "1:989451608043:web:c33de8fdcc3383dbc6c3ae"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  window._getQuizDoc = async (id) => {
+    const snap = await getDoc(doc(db,'quizzes',id));
+    return snap.exists() ? {id:snap.id,...snap.data()} : null;
+  };
+  window._getContentDoc = async (id) => {
+    const snap = await getDoc(doc(db,'content',id));
+    return snap.exists() ? {id:snap.id,...snap.data()} : null;
+  };
+</script>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; }
   .opt-btn { transition: all .18s; border: 2px solid #e2e8f0; }
@@ -185,57 +210,61 @@ const GEMINI_KEY = "AIzaSyBJZTx5hcLJgA3JyQXVRZaHKVP2zR365W4";
 let questions = [], current = 0, answered = false, correct = 0, wrong = 0;
 let chatHistory = [], chatOpen = false, bubbleCounter = 0;
 let quizMeta = null;
+let ERROR_KEY = 'allite_err_default';
 
 // ── LOAD ──────────────────────────────────────────────────────────
 async function loadQuiz() {
-  // Get quiz id from URL param e.g. quiz.html?id=2025_kedah_k1
   const params = new URLSearchParams(location.search);
   const quizId = params.get('id');
 
-  // Load quiz registry
-  const regResp = await fetch('quizzes.json');
-  const registry = await regResp.json();
-
-  // Find matching entry (fallback to first active if no id param)
-  quizMeta = quizId
-    ? registry.find(q => q.id === quizId)
-    : registry.find(q => q.active);
-
-  if (!quizMeta || !quizMeta.active) {
+  if (!quizId) {
     document.getElementById('quiz-title').textContent = 'Quiz tidak tersedia';
     document.getElementById('quiz-sub').textContent = 'Sila kembali ke halaman utama';
     return;
   }
 
-  // Access check: members-only quiz
-  if (quizMeta.access === 'members') {
-    const uid = window._getUid ? window._getUid() : null;
-    if (!uid) {
-      showAccessGate('members');
-      return;
-    }
-    if (window._hasPurchased) {
-      const isPremium = await window._hasPurchased('premium');
-      if (!isPremium) { showAccessGate('members'); return; }
-    }
+  // Wait for Firebase module to be ready
+  let attempts = 0;
+  while (!window._getQuizDoc && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+
+  let quizData = null;
+  try { quizData = await window._getQuizDoc(quizId); } catch(e) {}
+
+  if (!quizData) {
+    document.getElementById('quiz-title').textContent = 'Quiz tidak dijumpai';
+    document.getElementById('quiz-sub').textContent = 'ID tidak sah atau quiz belum wujud';
+    return;
   }
 
-  const r = await fetch(quizMeta.file);
-  questions = await r.json();
-  const name = `${quizMeta.year} Sejarah ${quizMeta.state} Kertas ${quizMeta.kertas}`;
-  document.getElementById('quiz-title').textContent = name;
-  document.getElementById('quiz-sub').textContent = `${questions.length} soalan pilihan jawapan`;
-  document.title = name + ' – StudyNest';
+  // Access check via content document
+  if (quizData.contentId) {
+    try {
+      const content = await window._getContentDoc(quizData.contentId);
+      if (content?.access === 'members') {
+        const uid = window._getUid ? window._getUid() : null;
+        if (!uid) { showAccessGate(); return; }
+      }
+    } catch(e) {}
+  }
+
+  questions = quizData.questions || [];
+  quizMeta  = quizData;
+  ERROR_KEY = 'allite_err_' + quizId;
+
+  const title = quizData.title || `Quiz ${quizId}`;
+  document.getElementById('quiz-title').textContent = title;
+  document.getElementById('quiz-sub').textContent   = `${questions.length} soalan pilihan jawapan`;
+  document.title = title + ' – Allite';
   showQuestion(0);
   updateErrCount();
 }
 
-function showAccessGate(type) {
+function showAccessGate() {
   document.getElementById('q-card').innerHTML = `
     <div class="text-center py-8">
       <div class="text-4xl mb-3">🔒</div>
-      <div class="font-bold text-slate-700 mb-2">Quiz ini untuk ahli Premium sahaja</div>
-      <div class="text-sm text-slate-400 mb-5">Daftar Premium untuk akses semua quiz + AI tutor tanpa had</div>
+      <div class="font-bold text-slate-700 mb-2">Quiz ini untuk ahli sahaja</div>
+      <div class="text-sm text-slate-400 mb-5">Log masuk untuk akses quiz ini</div>
       <a href="index.html" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition inline-block">← Kembali</a>
     </div>`;
   document.getElementById('options-grid').classList.add('hidden');
@@ -335,9 +364,7 @@ function restartQuiz() {
 }
 
 // ── ERROR NOTEBOOK ─────────────────────────────────────────────────
-function getErrorKey() { return 'sn_errors_' + (quizMeta?.id || 'default'); }
 function saveError(q, chosen) {
-  const ERROR_KEY = getErrorKey();
   const errors = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');
   const idx = errors.findIndex(e=>e.no===q.no);
   const entry = {no:q.no,q:q.q,a:q.a,b:q.b,c:q.c,d:q.d,answer:q.answer,chosen,ts:Date.now()};
@@ -346,11 +373,10 @@ function saveError(q, chosen) {
   updateErrCount();
 }
 function updateErrCount() {
-  const n = JSON.parse(localStorage.getItem(getErrorKey())||'[]').length;
+  const n = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]').length;
   document.getElementById('err-count').textContent = n;
 }
 function showErrorBook() {
-  const ERROR_KEY = getErrorKey();
   const errors = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');
   document.getElementById('error-count-label').textContent = `${errors.length} soalan disimpan`;
   const list = document.getElementById('error-list');
@@ -368,7 +394,7 @@ function showErrorBook() {
 }
 function closeErrorBook() { document.getElementById('error-modal').classList.add('hidden'); }
 function clearErrors() {
-  if(confirm('Kosongkan semua ralat?')) { localStorage.removeItem(getErrorKey()); updateErrCount(); closeErrorBook(); }
+  if(confirm('Kosongkan semua ralat?')) { localStorage.removeItem(ERROR_KEY); updateErrCount(); closeErrorBook(); }
 }
 
 // ── AI CHAT ───────────────────────────────────────────────────────
