@@ -854,6 +854,18 @@ function updatePremGate() {
 /* ── Navigation ───────────────────────────────────────────────── */
 const PAGES = ['home','papers','premium','collection','books','cart','careers'];
 
+// Quiz registry — loaded once
+let _quizRegistry = null;
+async function getQuizRegistry() {
+  if (_quizRegistry) return _quizRegistry;
+  try { const r = await fetch('quizzes.json'); _quizRegistry = await r.json(); } catch { _quizRegistry = []; }
+  return _quizRegistry;
+}
+function findQuiz(year, state, kertas) {
+  if (!_quizRegistry) return null;
+  return _quizRegistry.find(q => q.active && q.year==year && q.state===state && String(q.kertas)===String(kertas)) || null;
+}
+
 function nav(page) {
   PAGES.forEach(p => {
     const el = document.getElementById('pg-'+p);
@@ -890,7 +902,8 @@ function setYear(y) {
   renderPapers();
 }
 
-function renderPapers() {
+async function renderPapers() {
+  await getQuizRegistry(); // preload registry
   const q=(document.getElementById('search').value||'').toLowerCase().trim();
   const sub=PAPERS.filter(p=>p.year===activeYear &&
     (!q||p.state.toLowerCase().includes(q)||p.region.toLowerCase().includes(q)));
@@ -909,30 +922,37 @@ function renderPapers() {
       <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:var(--muted)">${REGION_LABELS[region]||region}</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">`;
     for(const [s,f] of Object.entries(byR[region]).sort(([a],[b])=>a.localeCompare(b)))
-      html+=stateCard(s,f);
+      html+=stateCard(s,f,activeYear);
     html+='</div></div>';
   }
   html+='</div>';
   g.innerHTML=html;
 }
 
-function stateCard(state,papers) {
+function stateCard(state,papers,year) {
   const isCombo=p=>/kertas\s*1\s*[&+]\s*2/i.test(p.label);
   const combos=papers.filter(isCombo);
   const singles=papers.filter(p=>!isCombo(p));
   const kMap={};
   for(const p of singles){
     const m=p.label.match(/Kertas\s*(\d+)/i);if(!m)continue;
-    const k='Kertas '+m[1];
-    if(!kMap[k])kMap[k]={soalan:null,jawapan:[]};
+    const k='Kertas '+m[1]; const kNum=m[1];
+    if(!kMap[k])kMap[k]={soalan:null,jawapan:[],kNum};
     if(p.jawapan)kMap[k].jawapan.push(p);else kMap[k].soalan=p;
   }
   let rows='';
   for(const [k,f] of Object.entries(kMap).sort()){
+    const quiz = findQuiz(year, state, f.kNum);
     rows+=`<div class="flex items-center justify-between py-2 border-b last:border-0" style="border-color:#EEF4EF">
       <span class="text-sm font-medium" style="color:var(--text)">${k}</span>
       <div class="flex gap-1.5 flex-wrap justify-end">`;
-    if(f.soalan) rows+=ptag(f.soalan,'Soalan','tag-s');
+    // Quiz button (takes priority over PDF soalan link)
+    if(quiz) {
+      const lock = quiz.access==='members' ? '🔒 ' : '';
+      rows+=`<a href="quiz.html?id=${quiz.id}" class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">🎯 ${lock}Latih</a>`;
+    } else if(f.soalan) {
+      rows+=ptag(f.soalan,'Soalan','tag-s');
+    }
     for(const j of f.jawapan) rows+=ptag(j,jLbl(j.label),isSpec(j.label)?'tag-x':'tag-j');
     for(const c of combos)    rows+=ptag(c,'Jawapan (K1+K2)','tag-x');
     rows+='</div></div>';

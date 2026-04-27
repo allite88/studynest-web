@@ -181,21 +181,65 @@
 
 <script>
 const GEMINI_KEY = "AIzaSyBJZTx5hcLJgA3JyQXVRZaHKVP2zR365W4";
-const QUIZ_FILE  = "quiz_2025_kedah_k1.json";
-const QUIZ_NAME  = "2025 Sejarah Kedah Kertas 1";
-const ERROR_KEY  = "sn_errors_2025_kedah_k1";
 
 let questions = [], current = 0, answered = false, correct = 0, wrong = 0;
 let chatHistory = [], chatOpen = false, bubbleCounter = 0;
+let quizMeta = null;
 
 // ── LOAD ──────────────────────────────────────────────────────────
 async function loadQuiz() {
-  const r = await fetch(QUIZ_FILE);
+  // Get quiz id from URL param e.g. quiz.html?id=2025_kedah_k1
+  const params = new URLSearchParams(location.search);
+  const quizId = params.get('id');
+
+  // Load quiz registry
+  const regResp = await fetch('quizzes.json');
+  const registry = await regResp.json();
+
+  // Find matching entry (fallback to first active if no id param)
+  quizMeta = quizId
+    ? registry.find(q => q.id === quizId)
+    : registry.find(q => q.active);
+
+  if (!quizMeta || !quizMeta.active) {
+    document.getElementById('quiz-title').textContent = 'Quiz tidak tersedia';
+    document.getElementById('quiz-sub').textContent = 'Sila kembali ke halaman utama';
+    return;
+  }
+
+  // Access check: members-only quiz
+  if (quizMeta.access === 'members') {
+    const uid = window._getUid ? window._getUid() : null;
+    if (!uid) {
+      showAccessGate('members');
+      return;
+    }
+    if (window._hasPurchased) {
+      const isPremium = await window._hasPurchased('premium');
+      if (!isPremium) { showAccessGate('members'); return; }
+    }
+  }
+
+  const r = await fetch(quizMeta.file);
   questions = await r.json();
-  document.getElementById('quiz-title').textContent = QUIZ_NAME;
+  const name = `${quizMeta.year} Sejarah ${quizMeta.state} Kertas ${quizMeta.kertas}`;
+  document.getElementById('quiz-title').textContent = name;
   document.getElementById('quiz-sub').textContent = `${questions.length} soalan pilihan jawapan`;
+  document.title = name + ' – StudyNest';
   showQuestion(0);
   updateErrCount();
+}
+
+function showAccessGate(type) {
+  document.getElementById('q-card').innerHTML = `
+    <div class="text-center py-8">
+      <div class="text-4xl mb-3">🔒</div>
+      <div class="font-bold text-slate-700 mb-2">Quiz ini untuk ahli Premium sahaja</div>
+      <div class="text-sm text-slate-400 mb-5">Daftar Premium untuk akses semua quiz + AI tutor tanpa had</div>
+      <a href="index.html" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition inline-block">← Kembali</a>
+    </div>`;
+  document.getElementById('options-grid').classList.add('hidden');
+  document.getElementById('nav-row').classList.add('hidden');
 }
 
 // ── SHOW QUESTION ─────────────────────────────────────────────────
@@ -291,7 +335,9 @@ function restartQuiz() {
 }
 
 // ── ERROR NOTEBOOK ─────────────────────────────────────────────────
+function getErrorKey() { return 'sn_errors_' + (quizMeta?.id || 'default'); }
 function saveError(q, chosen) {
+  const ERROR_KEY = getErrorKey();
   const errors = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');
   const idx = errors.findIndex(e=>e.no===q.no);
   const entry = {no:q.no,q:q.q,a:q.a,b:q.b,c:q.c,d:q.d,answer:q.answer,chosen,ts:Date.now()};
@@ -300,10 +346,11 @@ function saveError(q, chosen) {
   updateErrCount();
 }
 function updateErrCount() {
-  const n = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]').length;
+  const n = JSON.parse(localStorage.getItem(getErrorKey())||'[]').length;
   document.getElementById('err-count').textContent = n;
 }
 function showErrorBook() {
+  const ERROR_KEY = getErrorKey();
   const errors = JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');
   document.getElementById('error-count-label').textContent = `${errors.length} soalan disimpan`;
   const list = document.getElementById('error-list');
@@ -321,7 +368,7 @@ function showErrorBook() {
 }
 function closeErrorBook() { document.getElementById('error-modal').classList.add('hidden'); }
 function clearErrors() {
-  if(confirm('Kosongkan semua ralat?')) { localStorage.removeItem(ERROR_KEY); updateErrCount(); closeErrorBook(); }
+  if(confirm('Kosongkan semua ralat?')) { localStorage.removeItem(getErrorKey()); updateErrCount(); closeErrorBook(); }
 }
 
 // ── AI CHAT ───────────────────────────────────────────────────────
