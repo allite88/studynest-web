@@ -291,6 +291,8 @@ let qeSlotKey    = null;
 let qeQuizId     = null;
 let qeQuestions  = [];
 let qeExpanded   = null;
+let extractionImages = [], extractionFailedBatches = [], extractionKey = '';
+let qaExtractionImages = [], qaExtractionFailedBatches = [], qaExtractionKey = '';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -834,7 +836,7 @@ function renderQCardBody(q, i) {
       <div class="flex gap-2 items-center">
         <span class="text-xs font-bold text-indigo-400 w-4 shrink-0">${l.toUpperCase()}</span>
         <input class="field text-sm flex-1" type="text" value="${escAttr(q[l]||'')}" oninput="qeSet(${i},'${l}',this.value)">
-        <button onclick="triggerOptImg(${i},'${l}')" title="Gambar pilihan ${l.toUpperCase()}" class="shrink-0 text-slate-300 hover:text-indigo-500 px-1.5 py-1 rounded text-sm hover:bg-indigo-50 transition">🖼</button>
+        <button onclick="triggerOptImg(${i},'${l}')" title="Gambar pilihan ${l.toUpperCase()}" class="shrink-0 text-indigo-400 hover:text-indigo-600 px-1.5 py-1 rounded text-sm hover:bg-indigo-50 transition border border-indigo-200">🖼</button>
         <input type="file" accept="image/*" class="hidden" id="optimg-${i}-${l}" onchange="fileOptImg(this,${i},'${l}')">
       </div>
       ${q[l+'Img'] ? `<div class="ml-6 mt-1 flex items-start gap-2"><img src="${q[l+'Img']}" class="max-h-16 rounded-lg border border-slate-200"><button onclick="qeSet(${i},'${l}Img','');renderQeList()" class="text-xs text-red-400 hover:underline mt-1">× Buang</button></div>` : ''}
@@ -896,10 +898,13 @@ document.addEventListener('paste', e => {
 });
 
 // ── PDF EXTRACTION ─────────────────────────────────────────────────
-async function geminiRequest(key, parts, retries=2) {
+async function geminiRequest(key, parts, retries=4) {
   let lastErr = '';
   for (let attempt=0; attempt<=retries; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
+    if (attempt > 0) {
+      const delay = Math.min(10000 * attempt, 25000);
+      await new Promise(r => setTimeout(r, delay));
+    }
     try {
       const resp = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -908,8 +913,11 @@ async function geminiRequest(key, parts, retries=2) {
       const result = await resp.json();
       if (result.error) {
         lastErr = result.error.message;
-        const isRateLimit = result.error.code===429 || (result.error.message||'').toLowerCase().includes('quota') || (result.error.message||'').toLowerCase().includes('rate');
-        if (isRateLimit && attempt < retries) continue;
+        const msg = (result.error.message||'').toLowerCase();
+        const isRetryable = result.error.code===429 || result.error.code===503 ||
+          msg.includes('quota') || msg.includes('rate') || msg.includes('demand') ||
+          msg.includes('overload') || msg.includes('busy') || msg.includes('capacity');
+        if (isRetryable && attempt < retries) continue;
         return { error: lastErr };
       }
       return result;
@@ -918,12 +926,37 @@ async function geminiRequest(key, parts, retries=2) {
   return { error: lastErr };
 }
 
+const MCQ_PROMPT = (pages) => `Extract ALL multiple choice questions from these SPM exam pages (pages ${pages}).
+Return ONLY a JSON array with this exact structure (no other text):
+[{
+  "no": 1,
+  "q": "full question text",
+  "a": "option A text",
+  "b": "option B text",
+  "c": "option C text",
+  "d": "option D text",
+  "answer": "A",
+  "explanation": "2-3 sentences explaining why the correct answer is correct in SPM Sejarah context, and why the other options are wrong.",
+  "memoryTrick": "A fun 谐音梗, silly joke, acronym, or absurd story in Chinese or BM to help students remember the key fact. The more ridiculous, the more memorable."
+}]
+Include ALL questions found on these pages. Return ONLY the JSON array.`;
+
+function addRetryBtn(logEl, count, fn) {
+  logEl.querySelector('.retry-btn')?.remove();
+  const btn = document.createElement('button');
+  btn.className = 'retry-btn';
+  btn.style.cssText = 'margin-top:6px;padding:3px 12px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:monospace;display:block;';
+  btn.textContent = `🔄 Retry ${count} Batch Gagal`;
+  btn.onclick = fn;
+  logEl.appendChild(btn);
+}
+
 window.extractFromPdf = async (input) => {
   if (!input.files[0]) return;
   const key = document.getElementById('gemini-key-input').value.trim();
   if (!key) { alert('Masukkan Gemini API key terlebih dahulu.'); return; }
+  extractionKey = key;
   localStorage.setItem('allite_gkey', key);
-  // Save key to Firestore for quiz.html AI tutor
   try { await setDoc(doc(db,'config','app'), { geminiKey: key }, { merge: true }); } catch(e) {}
 
   const logEl = document.getElementById('extract-log');
@@ -948,35 +981,28 @@ window.extractFromPdf = async (input) => {
     images.push(canvas.toDataURL('image/jpeg',0.85).split(',')[1]);
     log(`🖼 Halaman ${p}/${pdf.numPages} siap`);
   }
+  extractionImages = images;
+  extractionFailedBatches = [];
 
   log('🤖 Menghantar ke Gemini AI...');
   const BATCH = 4;
   let all = [];
 
   for (let s=0; s<images.length; s+=BATCH) {
-    if (s > 0) await new Promise(r => setTimeout(r, 2500)); // delay between batches
+    if (s > 0) await new Promise(r => setTimeout(r, 3000));
     const batch = images.slice(s, s+BATCH);
     const pages = `${s+1}–${Math.min(s+BATCH, pdf.numPages)}`;
     log(`🤖 Memproses halaman ${pages}...`);
     const parts = [
-      { text: `Extract ALL multiple choice questions from these SPM exam pages (pages ${pages}).
-Return ONLY a JSON array with this exact structure (no other text):
-[{
-  "no": 1,
-  "q": "full question text",
-  "a": "option A text",
-  "b": "option B text",
-  "c": "option C text",
-  "d": "option D text",
-  "answer": "A",
-  "explanation": "2-3 sentences explaining why the correct answer is correct in SPM Sejarah context, and why the other options are wrong.",
-  "memoryTrick": "A fun 谐音梗, silly joke, acronym, or absurd story in Chinese or BM to help students remember the key fact. The more ridiculous, the more memorable."
-}]
-Include ALL questions found on these pages. Return ONLY the JSON array.` },
+      { text: MCQ_PROMPT(pages) },
       ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
     ];
     const result = await geminiRequest(key, parts);
-    if (result.error) { log(`❌ Halaman ${pages}: ${result.error}`, 'log-err'); continue; }
+    if (result.error) {
+      log(`❌ Halaman ${pages}: ${result.error}`, 'log-err');
+      extractionFailedBatches.push({ pages, start: s });
+      continue;
+    }
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
     const match = text.match(/\[[\s\S]*\]/);
     if (match) {
@@ -984,13 +1010,16 @@ Include ALL questions found on these pages. Return ONLY the JSON array.` },
         const qs = JSON.parse(match[0]);
         all.push(...qs);
         log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
-      } catch(e) { log(`⚠️ JSON parse error halaman ${pages}`, 'log-err'); }
+      } catch(e) {
+        log(`⚠️ JSON parse error halaman ${pages}`, 'log-err');
+        extractionFailedBatches.push({ pages, start: s });
+      }
     } else {
-      log(`⚠️ Tiada soalan dari halaman ${pages}`);
+      log(`⚠️ Tiada soalan dari halaman ${pages}`, 'log-err');
+      extractionFailedBatches.push({ pages, start: s });
     }
   }
 
-  // Deduplicate by question number, keep existing qImg/optImages
   const seen = new Set();
   const unique = all.filter(q=>{ if(seen.has(q.no)) return false; seen.add(q.no); return true; })
     .sort((a,b)=>(a.no||0)-(b.no||0))
@@ -1000,8 +1029,72 @@ Include ALL questions found on these pages. Return ONLY the JSON array.` },
     });
 
   qeQuestions = unique; qeExpanded = null; renderQeList();
-  log(`🎉 Selesai — ${unique.length} soalan diekstrak (dengan penjelasan & cara ingat).`, 'log-ok');
+  log(`🎉 Selesai — ${unique.length} soalan diekstrak.`, 'log-ok');
+  if (extractionFailedBatches.length > 0) {
+    log(`⚠️ ${extractionFailedBatches.length} batch gagal — klik Retry untuk cuba semula sahaja batch yang gagal.`, 'log-err');
+    addRetryBtn(logEl, extractionFailedBatches.length, retryFailedBatches);
+  }
   input.value = '';
+};
+
+window.retryFailedBatches = async () => {
+  if (!extractionFailedBatches.length || !extractionKey || !extractionImages.length) return;
+  const logEl = document.getElementById('extract-log');
+  logEl.querySelector('.retry-btn')?.remove();
+  const log = (msg, cls='log-info') => {
+    const d = document.createElement('div'); d.className='log-line '+cls; d.textContent=msg;
+    logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  };
+  const batches = [...extractionFailedBatches];
+  extractionFailedBatches = [];
+  log(`🔄 Mencuba ${batches.length} batch yang gagal...`);
+  const BATCH = 4;
+
+  for (const { pages, start } of batches) {
+    await new Promise(r => setTimeout(r, 3000));
+    log(`🤖 Retry halaman ${pages}...`);
+    const batch = extractionImages.slice(start, start+BATCH);
+    const parts = [
+      { text: MCQ_PROMPT(pages) },
+      ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
+    ];
+    const result = await geminiRequest(extractionKey, parts);
+    if (result.error) {
+      log(`❌ Masih gagal halaman ${pages}: ${result.error}`, 'log-err');
+      extractionFailedBatches.push({ pages, start });
+      continue;
+    }
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const qs = JSON.parse(match[0]);
+        for (const q of qs) {
+          const idx = qeQuestions.findIndex(e => e.no === q.no);
+          const existing = idx >= 0 ? qeQuestions[idx] : {};
+          const merged = { ...q, qImg: existing.qImg||'', aImg: existing.aImg||'', bImg: existing.bImg||'', cImg: existing.cImg||'', dImg: existing.dImg||'' };
+          if (idx >= 0) qeQuestions[idx] = merged;
+          else qeQuestions.push(merged);
+        }
+        qeQuestions.sort((a,b)=>(a.no||0)-(b.no||0));
+        renderQeList();
+        log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
+      } catch(e) {
+        log(`⚠️ JSON parse error halaman ${pages}`, 'log-err');
+        extractionFailedBatches.push({ pages, start });
+      }
+    } else {
+      log(`⚠️ Tiada soalan dari halaman ${pages}`, 'log-err');
+      extractionFailedBatches.push({ pages, start });
+    }
+  }
+
+  if (extractionFailedBatches.length > 0) {
+    log(`⚠️ Masih ${extractionFailedBatches.length} batch gagal.`, 'log-err');
+    addRetryBtn(logEl, extractionFailedBatches.length, retryFailedBatches);
+  } else {
+    log(`🎉 Semua batch berjaya! Total ${qeQuestions.length} soalan.`, 'log-ok');
+  }
 };
 
 // ── MEMBERS ───────────────────────────────────────────────────────
@@ -1209,11 +1302,25 @@ document.addEventListener('paste', e => {
   }
 });
 
+const QA_PROMPT = (pages) => `Extract ALL essay/structured questions from these SPM exam pages (pages ${pages}).
+Return ONLY a JSON array (no other text):
+[{
+  "no": 1,
+  "q": "full question text",
+  "qImg": "",
+  "answer": "complete model answer with all marking points",
+  "keywords": ["important keyword1", "keyword2", "key phrase 3"],
+  "marks": 8
+}]
+For keywords: include 3-8 key terms/phrases that must appear in a good answer — these will be highlighted for students.
+Include ALL questions found. Return ONLY the JSON array.`;
+
 // ── Q&A PDF EXTRACTION ────────────────────────────────────────────
 window.extractQAFromPdf = async (input) => {
   if (!input.files[0]) return;
   const key = document.getElementById('gemini-key-qa').value.trim();
   if (!key) { alert('Masukkan Gemini API key.'); return; }
+  qaExtractionKey = key;
   localStorage.setItem('allite_gkey', key);
   try { await setDoc(doc(db,'config','app'), { geminiKey: key }, { merge: true }); } catch(e) {}
 
@@ -1239,33 +1346,28 @@ window.extractQAFromPdf = async (input) => {
     images.push(canvas.toDataURL('image/jpeg',0.85).split(',')[1]);
     log(`🖼 Halaman ${p}/${pdf.numPages} siap`);
   }
+  qaExtractionImages = images;
+  qaExtractionFailedBatches = [];
 
   log('🤖 Menghantar ke Gemini AI...');
   const BATCH = 3;
   let all = [];
 
   for (let s=0; s<images.length; s+=BATCH) {
-    if (s > 0) await new Promise(r => setTimeout(r, 2500));
+    if (s > 0) await new Promise(r => setTimeout(r, 3000));
     const batch = images.slice(s, s+BATCH);
     const pages = `${s+1}–${Math.min(s+BATCH, pdf.numPages)}`;
     log(`🤖 Memproses halaman ${pages}...`);
     const parts = [
-      { text: `Extract ALL essay/structured questions from these SPM exam pages (pages ${pages}).
-Return ONLY a JSON array (no other text):
-[{
-  "no": 1,
-  "q": "full question text",
-  "qImg": "",
-  "answer": "complete model answer with all marking points",
-  "keywords": ["important keyword1", "keyword2", "key phrase 3"],
-  "marks": 8
-}]
-For keywords: include 3-8 key terms/phrases that must appear in a good answer — these will be highlighted for students.
-Include ALL questions found. Return ONLY the JSON array.` },
+      { text: QA_PROMPT(pages) },
       ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
     ];
     const result = await geminiRequest(key, parts);
-    if (result.error) { log(`❌ Halaman ${pages}: ${result.error}`, 'log-err'); continue; }
+    if (result.error) {
+      log(`❌ Halaman ${pages}: ${result.error}`, 'log-err');
+      qaExtractionFailedBatches.push({ pages, start: s });
+      continue;
+    }
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
     const match = text.match(/\[[\s\S]*\]/);
     if (match) {
@@ -1273,9 +1375,13 @@ Include ALL questions found. Return ONLY the JSON array.` },
         const qs = JSON.parse(match[0]);
         all.push(...qs);
         log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
-      } catch(e) { log(`⚠️ JSON error halaman ${pages}`, 'log-err'); }
+      } catch(e) {
+        log(`⚠️ JSON error halaman ${pages}`, 'log-err');
+        qaExtractionFailedBatches.push({ pages, start: s });
+      }
     } else {
-      log(`⚠️ Tiada soalan dari halaman ${pages}`);
+      log(`⚠️ Tiada soalan dari halaman ${pages}`, 'log-err');
+      qaExtractionFailedBatches.push({ pages, start: s });
     }
   }
 
@@ -1286,7 +1392,70 @@ Include ALL questions found. Return ONLY the JSON array.` },
 
   qaeQuestions = unique; qaeExpanded = null; renderQAList();
   log(`🎉 Selesai — ${unique.length} soalan diekstrak (dengan keywords).`, 'log-ok');
+  if (qaExtractionFailedBatches.length > 0) {
+    log(`⚠️ ${qaExtractionFailedBatches.length} batch gagal — klik Retry untuk cuba semula sahaja batch yang gagal.`, 'log-err');
+    addRetryBtn(logEl, qaExtractionFailedBatches.length, retryQAFailedBatches);
+  }
   input.value = '';
+};
+
+window.retryQAFailedBatches = async () => {
+  if (!qaExtractionFailedBatches.length || !qaExtractionKey || !qaExtractionImages.length) return;
+  const logEl = document.getElementById('qa-extract-log');
+  logEl.querySelector('.retry-btn')?.remove();
+  const log = (msg, cls='log-info') => {
+    const d = document.createElement('div'); d.className='log-line '+cls; d.textContent=msg;
+    logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  };
+  const batches = [...qaExtractionFailedBatches];
+  qaExtractionFailedBatches = [];
+  log(`🔄 Mencuba ${batches.length} batch yang gagal...`);
+  const BATCH = 3;
+
+  for (const { pages, start } of batches) {
+    await new Promise(r => setTimeout(r, 3000));
+    log(`🤖 Retry halaman ${pages}...`);
+    const batch = qaExtractionImages.slice(start, start+BATCH);
+    const parts = [
+      { text: QA_PROMPT(pages) },
+      ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
+    ];
+    const result = await geminiRequest(qaExtractionKey, parts);
+    if (result.error) {
+      log(`❌ Masih gagal halaman ${pages}: ${result.error}`, 'log-err');
+      qaExtractionFailedBatches.push({ pages, start });
+      continue;
+    }
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const qs = JSON.parse(match[0]);
+        for (const q of qs) {
+          const idx = qaeQuestions.findIndex(e => e.no === q.no);
+          const merged = { ...q, qImg: idx >= 0 ? (qaeQuestions[idx].qImg||'') : '' };
+          if (idx >= 0) qaeQuestions[idx] = merged;
+          else qaeQuestions.push(merged);
+        }
+        qaeQuestions.sort((a,b)=>(a.no||0)-(b.no||0));
+        renderQAList();
+        log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
+      } catch(e) {
+        log(`⚠️ JSON error halaman ${pages}`, 'log-err');
+        qaExtractionFailedBatches.push({ pages, start });
+      }
+    } else {
+      log(`⚠️ Tiada soalan dari halaman ${pages}`, 'log-err');
+      qaExtractionFailedBatches.push({ pages, start });
+    }
+  }
+
+  if (qaExtractionFailedBatches.length > 0) {
+    log(`⚠️ Masih ${qaExtractionFailedBatches.length} batch gagal.`, 'log-err');
+    addRetryBtn(logEl, qaExtractionFailedBatches.length, retryQAFailedBatches);
+  } else {
+    log(`🎉 Semua batch berjaya! Total ${qaeQuestions.length} soalan.`, 'log-ok');
+  }
 };
 
 // ── UTILS ──────────────────────────────────────────────────────────
