@@ -29,6 +29,12 @@
     const snap = await getDoc(doc(db,'content',id));
     return snap.exists() ? {id:snap.id,...snap.data()} : null;
   };
+  window._getConfig = async () => {
+    try {
+      const snap = await getDoc(doc(db,'config','app'));
+      return snap.exists() ? snap.data() : {};
+    } catch(e) { return {}; }
+  };
 </script>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; }
@@ -113,6 +119,19 @@
 
       <!-- FEEDBACK + NEXT -->
       <div id="feedback" class="hidden mb-4 p-4 rounded-xl text-sm font-medium"></div>
+
+      <!-- AUTO EXPLANATION (shows on wrong answer) -->
+      <div id="explanation-box" class="hidden mb-4 space-y-2">
+        <div id="exp-wrap" class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed">
+          <div class="font-semibold text-indigo-700 text-xs mb-1.5 uppercase tracking-wide">📖 Kenapa jawapan ini betul?</div>
+          <div id="exp-text"></div>
+        </div>
+        <div id="trick-wrap" class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-slate-700">
+          <div class="font-semibold text-amber-700 text-xs mb-1.5 uppercase tracking-wide">💡 Cara ingat</div>
+          <div id="trick-text"></div>
+        </div>
+      </div>
+
       <div class="flex gap-3 items-center flex-wrap" id="nav-row">
         <button id="next-btn" onclick="nextQuestion()" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition">
           Seterusnya →
@@ -155,11 +174,18 @@
       <button onclick="toggleChat()" class="text-slate-400 hover:text-slate-600 text-xl w-7 h-7 flex items-center justify-center rounded">×</button>
     </div>
 
+    <!-- Language switcher -->
+    <div class="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xs text-slate-400">Bahasa:</span>
+      <button onclick="setLang('ms')" id="lang-ms" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold transition">BM</button>
+      <button onclick="setLang('en')" id="lang-en" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">EN</button>
+      <button onclick="setLang('zh')" id="lang-zh" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">中文</button>
+    </div>
     <!-- Quick actions -->
     <div class="p-3 border-b border-slate-100 flex flex-wrap gap-1.5">
-      <button onclick="quickAsk('Terangkan soalan ini dan sebab jawapan betul.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">✨ Terangkan</button>
-      <button onclick="quickAsk('Terjemahkan soalan ini ke dalam Bahasa Cina (简体中文) dan terangkan jawapan.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">🇨🇳 翻译中文</button>
-      <button onclick="quickAsk('Berikan saya contoh-contoh lain yang berkaitan dengan topik soalan ini untuk membantu saya faham.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">📚 Contoh lain</button>
+      <button onclick="quickAsk('Terangkan soalan ini dan sebab jawapan betul dengan lebih mendalam.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">✨ Terangkan</button>
+      <button onclick="quickAsk('Berikan saya 3 soalan serupa untuk latihan lanjut.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">🔁 Soalan serupa</button>
+      <button onclick="quickAsk('Berikan teknik jawapan terbaik untuk soalan jenis ini dalam peperiksaan SPM.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">🎯 Tips SPM</button>
       <button onclick="quickAsk('Ringkaskan konsep utama dalam soalan ini dalam bentuk nota pendek.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">📝 Nota ringkas</button>
     </div>
 
@@ -205,12 +231,28 @@
 </div>
 
 <script>
-const GEMINI_KEY = "AIzaSyBJZTx5hcLJgA3JyQXVRZaHKVP2zR365W4";
+let GEMINI_KEY = '';
+let currentLang = 'ms';
+
+const SYSTEM_PROMPTS = {
+  ms: `Kamu adalah tutor SPM Sejarah Malaysia yang pakar, mesra dan sabar. Kamu tahu semua topik Sejarah Form 4 dan Form 5 KSSM dengan mendalam. Jawab dalam Bahasa Melayu yang mudah difahami oleh pelajar SPM. Gunakan poin-poin pendek. Jika penjelasan disediakan dalam konteks, gunakan ia sebagai asas jawapan kamu dan kembangkan lagi.`,
+  en: `You are an expert, friendly SPM Malaysian History (Sejarah) tutor. You know all Form 4 and Form 5 KSSM topics in depth. Answer in clear, simple English for SPM students. Use short bullet points. If an explanation is provided in the context, use it as the basis of your answer and expand further.`,
+  zh: `你是专业、友善的马来西亚SPM历史（Sejarah）家教老师。你深入了解Form 4和Form 5的所有KSSM课题。用简单易懂的简体中文回答，适合SPM学生。使用简短要点。如果上下文中提供了解析，请以它为基础进一步展开解释。`
+};
 
 let questions = [], current = 0, answered = false, correct = 0, wrong = 0;
 let chatHistory = [], chatOpen = false, bubbleCounter = 0;
 let quizMeta = null;
 let ERROR_KEY = 'allite_err_default';
+
+async function initGemini() {
+  let attempts = 0;
+  while (!window._getConfig && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  try {
+    const config = await window._getConfig();
+    GEMINI_KEY = config.geminiKey || localStorage.getItem('allite_gkey') || '';
+  } catch(e) { GEMINI_KEY = localStorage.getItem('allite_gkey') || ''; }
+}
 
 // ── LOAD ──────────────────────────────────────────────────────────
 async function loadQuiz() {
@@ -304,6 +346,7 @@ function showQuestion(idx) {
   });
 
   document.getElementById('feedback').className = 'hidden mb-4 p-4 rounded-xl text-sm font-medium';
+  document.getElementById('explanation-box').classList.add('hidden');
   document.getElementById('next-btn').className = 'hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition';
   document.getElementById('ai-explain-btn').className = 'hidden items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition';
 
@@ -326,6 +369,7 @@ function selectAnswer(choice) {
     document.getElementById('opt-'+q.answer).classList.add('reveal');
     saveError(q, choice);
     document.getElementById('ai-explain-btn').className = 'flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition';
+    showExplanation(q);
   }
   ok ? correct++ : wrong++;
 
@@ -338,6 +382,28 @@ function selectAnswer(choice) {
 }
 
 function nextQuestion() { current++; showQuestion(current); }
+
+function showExplanation(q) {
+  if (!q.explanation && !q.memoryTrick) return;
+  const box = document.getElementById('explanation-box');
+  const expWrap = document.getElementById('exp-wrap');
+  const trickWrap = document.getElementById('trick-wrap');
+  box.classList.remove('hidden');
+  if (q.explanation) { expWrap.classList.remove('hidden'); document.getElementById('exp-text').textContent = q.explanation; }
+  else expWrap.classList.add('hidden');
+  if (q.memoryTrick) { trickWrap.classList.remove('hidden'); document.getElementById('trick-text').textContent = q.memoryTrick; }
+  else trickWrap.classList.add('hidden');
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  ['ms','en','zh'].forEach(l => {
+    const btn = document.getElementById('lang-'+l);
+    btn.className = l === lang
+      ? 'text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold transition'
+      : 'text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition';
+  });
+}
 
 // ── RESULTS ───────────────────────────────────────────────────────
 function showResults() {
@@ -412,7 +478,10 @@ function toggleChat() {
 function getCurrentCtx() {
   if (current >= questions.length) return null;
   const q = questions[current];
-  return `Soalan ${q.no}: ${q.q}\nA: ${q.a}\nB: ${q.b}\nC: ${q.c}\nD: ${q.d}\nJawapan betul: ${q.answer}`;
+  let ctx = `Soalan ${q.no}: ${q.q}\nA: ${q.a}\nB: ${q.b}\nC: ${q.c}\nD: ${q.d}\nJawapan betul: ${q.answer}`;
+  if (q.explanation) ctx += `\n[Penjelasan]: ${q.explanation}`;
+  if (q.memoryTrick) ctx += `\n[Cara ingat]: ${q.memoryTrick}`;
+  return ctx;
 }
 
 function quickAsk(prompt) { sendToGemini(prompt, prompt); }
@@ -440,18 +509,14 @@ async function sendToGemini(userMsg, displayMsg) {
 
   const tid = addTyping();
   try {
+    if (!GEMINI_KEY) { replaceBubble(tid, 'AI tutor tidak tersedia. Hubungi admin.'); return; }
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          system_instruction: {parts:[{text:
-            'Kamu adalah tutor SPM Sejarah yang mesra, sabar, dan pandai. ' +
-            'Jawab dalam bahasa yang pelajar gunakan (Melayu atau Cina). ' +
-            'Beri penjelasan yang jelas dan mudah difahami. ' +
-            'Gunakan poin-poin pendek. Jika pelajar minta terjemahan Cina, terjemah sepenuhnya ke 简体中文.'
-          }]},
+          system_instruction: {parts:[{text: SYSTEM_PROMPTS[currentLang] || SYSTEM_PROMPTS.ms}]},
           contents: chatHistory,
           generationConfig:{maxOutputTokens:1500}
         })
@@ -499,6 +564,7 @@ function replaceBubble(id, text) {
 }
 
 loadQuiz();
+initGemini();
 </script>
 </body>
 </html>

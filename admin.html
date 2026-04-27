@@ -785,9 +785,14 @@ function renderQCardBody(q, i) {
       <textarea class="field text-sm" rows="3" oninput="qeSet(${i},'q',this.value)">${escHtml(q.q||'')}</textarea>
     </div>
     ${['a','b','c','d'].map(l=>`
-    <div class="flex gap-2 items-center">
-      <span class="text-xs font-bold text-indigo-400 w-4 shrink-0">${l.toUpperCase()}</span>
-      <input class="field text-sm" type="text" value="${escAttr(q[l]||'')}" oninput="qeSet(${i},'${l}',this.value)">
+    <div>
+      <div class="flex gap-2 items-center">
+        <span class="text-xs font-bold text-indigo-400 w-4 shrink-0">${l.toUpperCase()}</span>
+        <input class="field text-sm flex-1" type="text" value="${escAttr(q[l]||'')}" oninput="qeSet(${i},'${l}',this.value)">
+        <button onclick="triggerOptImg(${i},'${l}')" title="Gambar pilihan ${l.toUpperCase()}" class="shrink-0 text-slate-300 hover:text-indigo-500 px-1.5 py-1 rounded text-sm hover:bg-indigo-50 transition">🖼</button>
+        <input type="file" accept="image/*" class="hidden" id="optimg-${i}-${l}" onchange="fileOptImg(this,${i},'${l}')">
+      </div>
+      ${q[l+'Img'] ? `<div class="ml-6 mt-1 flex items-start gap-2"><img src="${q[l+'Img']}" class="max-h-16 rounded-lg border border-slate-200"><button onclick="qeSet(${i},'${l}Img','');renderQeList()" class="text-xs text-red-400 hover:underline mt-1">× Buang</button></div>` : ''}
     </div>`).join('')}
     <div class="flex items-center gap-3 pt-1 flex-wrap">
       <div class="flex items-center gap-2">
@@ -816,16 +821,23 @@ window.qeDel = (i) => {
   qeQuestions.splice(i,1); qeExpanded=null; renderQeList();
 };
 window.addQuestion = () => {
-  qeQuestions.push({ no:qeQuestions.length+1, q:'', a:'', b:'', c:'', d:'', answer:'A', qImg:'' });
+  qeQuestions.push({ no:qeQuestions.length+1, q:'', a:'', b:'', c:'', d:'', answer:'A', qImg:'', explanation:'', memoryTrick:'' });
   qeExpanded = qeQuestions.length-1; renderQeList();
   setTimeout(() => document.getElementById(`qc-${qeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 80);
 };
-window.triggerQImg = (i) => document.getElementById(`qimg-${i}`)?.click();
-window.fileQImg   = (inp,i) => { if(inp.files[0]) readQImg(inp.files[0],i); };
-window.dropQImg   = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) readQImg(f,i); };
+window.triggerQImg   = (i)    => document.getElementById(`qimg-${i}`)?.click();
+window.fileQImg      = (inp,i) => { if(inp.files[0]) readQImg(inp.files[0],i); };
+window.dropQImg      = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) readQImg(f,i); };
+window.triggerOptImg = (i,l)   => document.getElementById(`optimg-${i}-${l}`)?.click();
+window.fileOptImg    = (inp,i,l) => { if(inp.files[0]) readOptImg(inp.files[0],i,l); };
 function readQImg(file, i) {
   const r = new FileReader();
   r.onload = e => { qeSet(i,'qImg',e.target.result); renderQeList(); };
+  r.readAsDataURL(file);
+}
+function readOptImg(file, i, l) {
+  const r = new FileReader();
+  r.onload = e => { qeSet(i, l+'Img', e.target.result); renderQeList(); };
   r.readAsDataURL(file);
 }
 
@@ -839,11 +851,35 @@ document.addEventListener('paste', e => {
 });
 
 // ── PDF EXTRACTION ─────────────────────────────────────────────────
+async function geminiRequest(key, parts, retries=2) {
+  let lastErr = '';
+  for (let attempt=0; attempt<=retries; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+        { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts}]}) }
+      );
+      const result = await resp.json();
+      if (result.error) {
+        lastErr = result.error.message;
+        const isRateLimit = result.error.code===429 || (result.error.message||'').toLowerCase().includes('quota') || (result.error.message||'').toLowerCase().includes('rate');
+        if (isRateLimit && attempt < retries) continue;
+        return { error: lastErr };
+      }
+      return result;
+    } catch(e) { lastErr = e.message; }
+  }
+  return { error: lastErr };
+}
+
 window.extractFromPdf = async (input) => {
   if (!input.files[0]) return;
   const key = document.getElementById('gemini-key-input').value.trim();
   if (!key) { alert('Masukkan Gemini API key terlebih dahulu.'); return; }
   localStorage.setItem('allite_gkey', key);
+  // Save key to Firestore for quiz.html AI tutor
+  try { await setDoc(doc(db,'config','app'), { geminiKey: key }, { merge: true }); } catch(e) {}
 
   const logEl = document.getElementById('extract-log');
   logEl.classList.remove('hidden'); logEl.innerHTML = '';
@@ -873,41 +909,53 @@ window.extractFromPdf = async (input) => {
   let all = [];
 
   for (let s=0; s<images.length; s+=BATCH) {
+    if (s > 0) await new Promise(r => setTimeout(r, 2500)); // delay between batches
     const batch = images.slice(s, s+BATCH);
     const pages = `${s+1}–${Math.min(s+BATCH, pdf.numPages)}`;
     log(`🤖 Memproses halaman ${pages}...`);
-    try {
-      const parts = [
-        { text: `Extract ALL multiple choice questions from these exam pages (pages ${pages}). Return ONLY a JSON array: [{"no":1,"q":"question","a":"A option","b":"B option","c":"C option","d":"D option","answer":"A"}]. Include every question found. Return ONLY the JSON array, no explanation.` },
-        ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
-      ];
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-        { method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({contents:[{parts}]}) }
-      );
-      const result = await resp.json();
-      if (result.error) { log('❌ '+result.error.message, 'log-err'); continue; }
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) {
+    const parts = [
+      { text: `Extract ALL multiple choice questions from these SPM exam pages (pages ${pages}).
+Return ONLY a JSON array with this exact structure (no other text):
+[{
+  "no": 1,
+  "q": "full question text",
+  "a": "option A text",
+  "b": "option B text",
+  "c": "option C text",
+  "d": "option D text",
+  "answer": "A",
+  "explanation": "2-3 sentences explaining why the correct answer is correct in SPM Sejarah context, and why the other options are wrong.",
+  "memoryTrick": "A fun 谐音梗, silly joke, acronym, or absurd story in Chinese or BM to help students remember the key fact. The more ridiculous, the more memorable."
+}]
+Include ALL questions found on these pages. Return ONLY the JSON array.` },
+      ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
+    ];
+    const result = await geminiRequest(key, parts);
+    if (result.error) { log(`❌ Halaman ${pages}: ${result.error}`, 'log-err'); continue; }
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
         const qs = JSON.parse(match[0]);
         all.push(...qs);
         log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
-      } else {
-        log(`⚠️ Tiada soalan dari halaman ${pages}`);
-      }
-    } catch(e) { log('❌ '+e.message, 'log-err'); }
+      } catch(e) { log(`⚠️ JSON parse error halaman ${pages}`, 'log-err'); }
+    } else {
+      log(`⚠️ Tiada soalan dari halaman ${pages}`);
+    }
   }
 
-  // Deduplicate by question number, keep existing qImg
+  // Deduplicate by question number, keep existing qImg/optImages
   const seen = new Set();
   const unique = all.filter(q=>{ if(seen.has(q.no)) return false; seen.add(q.no); return true; })
     .sort((a,b)=>(a.no||0)-(b.no||0))
-    .map(q => ({ ...q, qImg: qeQuestions.find(e=>e.no===q.no)?.qImg||'' }));
+    .map(q => {
+      const existing = qeQuestions.find(e=>e.no===q.no) || {};
+      return { ...q, qImg: existing.qImg||'', aImg: existing.aImg||'', bImg: existing.bImg||'', cImg: existing.cImg||'', dImg: existing.dImg||'' };
+    });
 
   qeQuestions = unique; qeExpanded = null; renderQeList();
-  log(`🎉 Selesai — ${unique.length} soalan diekstrak.`, 'log-ok');
+  log(`🎉 Selesai — ${unique.length} soalan diekstrak (dengan penjelasan & cara ingat).`, 'log-ok');
   input.value = '';
 };
 
