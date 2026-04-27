@@ -1,565 +1,555 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin – StudyNest Quiz</title>
+<title>Allite Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; }
-  .card { background: white; border-radius: 16px; border: 1.5px solid #e2e8f0; }
-  .field { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; font-size: 13px; outline: none; transition: border .15s; font-family: inherit; }
-  .field:focus { border-color: #6366f1; }
-  .ans-btn { border: 2px solid #e2e8f0; border-radius: 8px; padding: 5px 14px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
-  .ans-btn.active { border-color: #22c55e; background: #dcfce7; color: #15803d; }
-  .img-thumb { max-height: 80px; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer; }
-  .q-modified { border-left: 3px solid #6366f1 !important; }
-  .paste-zone { border: 2px dashed #cbd5e1; border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; transition: all .15s; font-size: 12px; color: #94a3b8; }
-  .paste-zone:hover { border-color: #6366f1; background: #eef2ff; color: #4338ca; }
-  .log-line { font-size: 12px; padding: 2px 0; border-bottom: 1px solid #f1f5f9; }
-  .log-ok { color: #15803d; } .log-err { color: #dc2626; } .log-info { color: #6366f1; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background:#f1f5f9; }
+  .field { width:100%; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:13px; outline:none; transition:border .15s; font-family:inherit; }
+  .field:focus { border-color:#6366f1; }
+  .tab-active { border-bottom:2px solid #6366f1; color:#6366f1; font-weight:600; }
+  .tab-idle   { border-bottom:2px solid transparent; color:#94a3b8; }
+  .tab-idle:hover { color:#64748b; }
+  .sub-active { background:#eef2ff; color:#4f46e5; font-weight:600; }
+  .sub-idle   { color:#64748b; }
+  .sub-idle:hover { background:#f8fafc; }
+  .toggle { position:relative; display:inline-block; width:40px; height:22px; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; inset:0; background:#cbd5e1; border-radius:22px; transition:.3s; cursor:pointer; }
+  .slider:before { content:''; position:absolute; height:16px; width:16px; left:3px; top:3px; background:white; border-radius:50%; transition:.3s; }
+  input:checked + .slider { background:#6366f1; }
+  input:checked + .slider:before { transform:translateX(18px); }
+  .badge-free    { background:#dcfce7; color:#15803d; }
+  .badge-members { background:#fef3c7; color:#b45309; }
+  .badge-active  { background:#dbeafe; color:#1d4ed8; }
+  .badge-off     { background:#f1f5f9; color:#94a3b8; }
+  .log-ok  { color:#15803d; } .log-err { color:#dc2626; } .log-info { color:#6366f1; }
+  .log-line { font-size:11px; padding:1px 0; }
+  .paste-zone { border:2px dashed #cbd5e1; border-radius:10px; padding:16px; text-align:center; cursor:pointer; transition:all .15s; }
+  .paste-zone:hover { border-color:#6366f1; background:#eef2ff; }
+  img.thumb { max-height:60px; border-radius:6px; object-fit:cover; border:1px solid #e2e8f0; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal-box { background:white; border-radius:20px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; }
+  ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
-<div class="bg-white border-b border-slate-200 px-5 py-3.5 flex items-center justify-between sticky top-0 z-20">
-  <div class="flex items-center gap-3">
-    <div class="font-bold text-slate-800 text-sm">📋 StudyNest Admin</div>
-    <div class="text-xs text-slate-400" id="file-label">Tiada projek</div>
-    <span id="mod-badge" class="hidden text-xs font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">● Belum disimpan</span>
-  </div>
-  <div class="flex gap-2">
-    <button onclick="exportJSON()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Eksport JSON</button>
-    <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition cursor-pointer">
-      📂 Buka JSON
-      <input type="file" accept=".json" class="hidden" onchange="loadJSONFile(this)">
-    </label>
-  </div>
-</div>
-
-<!-- TABS -->
-<div class="bg-white border-b border-slate-200 px-5 flex gap-1">
-  <button onclick="switchTab('generate')" id="tab-generate" class="tab-btn tab-active px-4 py-3 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-600">🤖 Jana Soalan</button>
-  <button onclick="switchTab('registry')" id="tab-registry" class="tab-btn tab-idle px-4 py-3 text-xs font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700">📋 Urus Quiz</button>
-</div>
-
-<div class="max-w-3xl mx-auto px-4 py-6 space-y-5">
-
-  <!-- TAB: GENERATE -->
-  <div id="tab-generate-content">
-
-  <!-- GENERATE FROM DRIVE -->
-  <div class="card p-5">
-    <div class="font-bold text-slate-800 mb-1 flex items-center gap-2">🤖 Jana Soalan dari Google Drive</div>
-    <div class="text-xs text-slate-400 mb-4">Masukkan link Drive untuk kertas soalan dan jawapan — AI akan extract semua soalan secara automatik.</div>
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-      💡 <b>Cara:</b> Buka Google Drive → klik kanan fail → <b>Download</b> → upload di sini
-    </div>
-    <div class="grid grid-cols-1 gap-3 mb-4">
-      <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">📄 Fail Soalan (PDF)</label>
-        <label class="flex items-center gap-3 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-xl px-4 py-3 cursor-pointer transition">
-          <span class="text-xl">📄</span>
-          <span class="flex-1">
-            <span class="text-sm font-medium text-slate-600" id="soalan-label">Pilih fail soalan PDF...</span>
-          </span>
-          <input type="file" accept=".pdf" class="hidden" id="file-soalan" onchange="onFileSelect(this,'soalan-label','soalan')">
-        </label>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">✅ Fail Jawapan (PDF)</label>
-        <label class="flex items-center gap-3 border-2 border-dashed border-slate-200 hover:border-green-400 hover:bg-green-50 rounded-xl px-4 py-3 cursor-pointer transition">
-          <span class="text-xl">✅</span>
-          <span class="flex-1">
-            <span class="text-sm font-medium text-slate-600" id="jawapan-label">Pilih fail jawapan PDF...</span>
-          </span>
-          <input type="file" accept=".pdf" class="hidden" id="file-jawapan" onchange="onFileSelect(this,'jawapan-label','jawapan')">
-        </label>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-slate-500 mb-1 block">🏷️ Nama Set</label>
-        <input id="quiz-name-input" type="text" class="field" placeholder="cth: 2025 Sejarah Kedah Kertas 1" value="2025 Sejarah Kedah Kertas 1">
-      </div>
-    </div>
-    <button onclick="generateFromFiles()" id="gen-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition disabled:opacity-50">
-      🤖 Jana Soalan dengan AI
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="min-h-screen flex items-center justify-center">
+  <div class="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm text-center">
+    <div class="text-3xl mb-2">🎓</div>
+    <div class="font-bold text-xl text-slate-800 mb-1">Allite Admin</div>
+    <div class="text-sm text-slate-400 mb-6">Log in with your admin account</div>
+    <button onclick="loginGoogle()" class="w-full flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl py-2.5 px-4 text-sm font-semibold text-slate-700 transition mb-3">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
     </button>
-    <!-- Progress log -->
-    <div id="gen-log" class="hidden mt-4 bg-slate-50 rounded-xl p-4 space-y-0.5 max-h-48 overflow-y-auto font-mono"></div>
+    <div id="login-err" class="text-xs text-red-500 mt-2 hidden"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden min-h-screen">
+
+  <!-- TOP BAR -->
+  <div class="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">A</div>
+      <span class="font-bold text-slate-800">Allite Admin</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="index.html" target="_blank" class="text-xs text-slate-400 hover:text-slate-600">← Lihat web</a>
+      <div class="text-xs text-slate-500" id="admin-email"></div>
+      <button onclick="logout()" class="text-xs text-slate-400 hover:text-red-500 transition">Log out</button>
+    </div>
   </div>
 
-  <!-- QUESTIONS -->
-  <div id="q-container" class="space-y-4"></div>
+  <!-- MAIN TABS -->
+  <div class="bg-white border-b border-slate-200 px-5 flex gap-1">
+    <button onclick="mainTab('content')" id="mt-content" class="tab-active px-4 py-3 text-sm transition">📚 Content</button>
+    <button onclick="mainTab('members')" id="mt-members" class="tab-idle px-4 py-3 text-sm transition">👥 Members</button>
+    <button onclick="mainTab('orders')"  id="mt-orders"  class="tab-idle px-4 py-3 text-sm transition">📦 Orders</button>
+  </div>
 
-  </div><!-- end tab-generate-content -->
+  <!-- CONTENT TAB -->
+  <div id="sec-content" class="max-w-5xl mx-auto px-4 py-5">
+    <!-- Sub-tabs -->
+    <div class="flex gap-1 mb-5 bg-white rounded-xl p-1 border border-slate-200 w-fit">
+      <button onclick="subTab('papers')"     id="st-papers"     class="sub-active  text-xs px-3 py-1.5 rounded-lg transition">📄 Trial Papers</button>
+      <button onclick="subTab('notes')"      id="st-notes"      class="sub-idle    text-xs px-3 py-1.5 rounded-lg transition">📝 Notes/Guides</button>
+      <button onclick="subTab('collection')" id="st-collection" class="sub-idle    text-xs px-3 py-1.5 rounded-lg transition">📦 Collection</button>
+      <button onclick="subTab('books')"      id="st-books"      class="sub-idle    text-xs px-3 py-1.5 rounded-lg transition">📚 Books</button>
+    </div>
 
-  <!-- TAB: REGISTRY -->
-  <div id="tab-registry-content" class="hidden">
-    <div class="card p-5">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <div class="font-bold text-slate-800">📋 Senarai Quiz</div>
-          <div class="text-xs text-slate-400 mt-0.5">Urus akses dan status setiap quiz</div>
-        </div>
-        <button onclick="exportRegistry()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">
-          💾 Simpan quizzes.json
-        </button>
-      </div>
-      <div id="registry-list" class="space-y-3">
-        <p class="text-slate-400 text-sm text-center py-8">Memuatkan...</p>
-      </div>
+    <!-- Filters + Add -->
+    <div class="flex items-center gap-2 mb-4 flex-wrap">
+      <select id="filter-subject" class="field w-auto" onchange="loadContent()">
+        <option value="">All Subjects</option>
+      </select>
+      <select id="filter-year" class="field w-auto" onchange="loadContent()">
+        <option value="">All Years</option>
+        <option>2025</option><option>2024</option><option>2023</option><option>2022</option><option>2021</option>
+      </select>
+      <button onclick="openModal()" class="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">+ Add</button>
+    </div>
+
+    <!-- Content List -->
+    <div id="content-list" class="space-y-2"></div>
+  </div>
+
+  <!-- MEMBERS TAB -->
+  <div id="sec-members" class="hidden max-w-5xl mx-auto px-4 py-5">
+    <div class="flex items-center justify-between mb-4">
+      <div class="font-semibold text-slate-700">Registered Students</div>
+      <input type="text" placeholder="Search email/name/school..." id="member-search" class="field w-64" oninput="filterMembers()">
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr class="text-xs text-slate-500 uppercase">
+            <th class="px-4 py-3 text-left">Email</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">Phone</th>
+            <th class="px-4 py-3 text-left">School</th>
+            <th class="px-4 py-3 text-left">Joined</th>
+            <th class="px-4 py-3 text-left">Premium</th>
+          </tr>
+        </thead>
+        <tbody id="members-body" class="divide-y divide-slate-100"></tbody>
+      </table>
+      <div id="members-empty" class="text-center text-slate-400 py-12 text-sm">No members yet</div>
+    </div>
+  </div>
+
+  <!-- ORDERS TAB -->
+  <div id="sec-orders" class="hidden max-w-5xl mx-auto px-4 py-5">
+    <div class="font-semibold text-slate-700 mb-4">Orders</div>
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr class="text-xs text-slate-500 uppercase">
+            <th class="px-4 py-3 text-left">Date</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">Phone</th>
+            <th class="px-4 py-3 text-left">Items</th>
+            <th class="px-4 py-3 text-left">Total</th>
+            <th class="px-4 py-3 text-left">Status</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body" class="divide-y divide-slate-100"></tbody>
+      </table>
+      <div id="orders-empty" class="text-center text-slate-400 py-12 text-sm">No orders yet</div>
     </div>
   </div>
 
 </div>
 
-<!-- FLOATING PASTE MODAL -->
-<div id="paste-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5" onclick="event.stopPropagation()">
-    <div class="flex items-center justify-between mb-3">
-      <div class="font-bold text-slate-800 text-sm" id="paste-title">Tambah Gambar</div>
-      <button onclick="closePasteModal()" class="text-slate-400 hover:text-slate-600 text-xl">×</button>
+<!-- ADD/EDIT MODAL -->
+<div id="modal" class="hidden modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+      <div class="font-bold text-slate-800" id="modal-title">Add Content</div>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center">×</button>
     </div>
-
-    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 mb-4">
-      💡 <b>Cara paling mudah:</b> Screenshot bahagian jadual/gambar dalam PDF, kemudian tekan <b>Cmd+V</b> (paste) di sini terus!
-    </div>
-
-    <div class="paste-zone mb-3" id="paste-dropzone"
-      ondragover="event.preventDefault();this.classList.add('border-indigo-400','bg-indigo-50')"
-      ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
-      ondrop="handleModalDrop(event)">
-      <div class="text-2xl mb-1">📋</div>
-      <div>Tekan <b>Cmd+V</b> untuk paste, atau drag & drop gambar</div>
-      <div class="mt-2">
-        <label class="text-indigo-500 font-semibold cursor-pointer hover:underline">
-          Pilih fail
-          <input type="file" accept="image/*" class="hidden" onchange="handleModalFile(this)">
-        </label>
-      </div>
-    </div>
-
-    <div id="paste-preview" class="hidden mb-4 p-3 bg-slate-50 rounded-xl">
-      <img id="paste-img" src="" class="max-h-48 rounded-lg border border-slate-200 mx-auto block">
-    </div>
-
-    <div class="flex gap-2 justify-end">
-      <button onclick="closePasteModal()" class="text-slate-500 text-sm px-3 py-2">Batal</button>
-      <button id="paste-save-btn" onclick="confirmPasteImg()" class="hidden bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
-        ✓ Simpan Gambar
-      </button>
+    <div class="p-5 space-y-4" id="modal-body"></div>
+    <div class="p-5 border-t border-slate-100 flex gap-3 justify-end">
+      <button onclick="closeModal()" class="text-slate-500 text-sm px-4 py-2">Cancel</button>
+      <button id="modal-delete-btn" onclick="deleteContent()" class="hidden text-red-500 hover:text-red-700 text-sm px-4 py-2">Delete</button>
+      <button onclick="saveContent()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">Save</button>
     </div>
   </div>
 </div>
 
-<script>
-const GEMINI_KEY = "AIzaSyBJZTx5hcLJgA3JyQXVRZaHKVP2zR365W4";
-let questions = [];
-let modified = false;
-let quizRegistry = [];
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
+  authDomain: "allite-platform.firebaseapp.com",
+  projectId: "allite-platform",
+  storageBucket: "allite-platform.firebasestorage.app",
+  messagingSenderId: "989451608043",
+  appId: "1:989451608043:web:c33de8fdcc3383dbc6c3ae"
+};
+
+const ADMIN_EMAIL = 'sgece88@gmail.com';
+const SUBJECTS = ['BM','BI','Math','Add Math','Sejarah','Biology','Chemistry','Physics','P.Islam','Moral','Sains','Ekonomi','P.Akaun','Geografi'];
+const STATES = ['Johor Bahru','Kota Tinggi','Batu Pahat','Kulai','Muar','Segamat','Pasir Gudang','Kluang','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Perak','Perlis','Pulau Pinang','Sabah','Sarawak','Selangor','Terengganu','WP KL','WP Putrajaya','MRSM','S1','SABK','SMKA','SPMU','YIK','Kebangsaan'];
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+let currentUser = null;
+let currentTab  = 'papers';
+let editingId   = null;
+let allMembers  = [];
+
+// ── AUTH ──────────────────────────────────────────────────────────
+window.loginGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => {
+  document.getElementById('login-err').textContent = e.message;
+  document.getElementById('login-err').classList.remove('hidden');
+});
+
+window.logout = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  if (user && user.email === ADMIN_EMAIL) {
+    currentUser = user;
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('admin-email').textContent = user.email;
+    populateSubjectFilter();
+    loadContent();
+  } else if (user) {
+    signOut(auth);
+    document.getElementById('login-err').textContent = 'This account does not have admin access.';
+    document.getElementById('login-err').classList.remove('hidden');
+  } else {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+  }
+});
 
 // ── TABS ──────────────────────────────────────────────────────────
-function switchTab(tab) {
-  ['generate','registry'].forEach(t => {
-    document.getElementById('tab-'+t+'-content')?.classList.toggle('hidden', t!==tab);
-    const btn = document.getElementById('tab-'+t);
-    if(btn) {
-      btn.className = t===tab
-        ? 'tab-btn px-4 py-3 text-xs font-semibold border-b-2 border-indigo-600 text-indigo-600'
-        : 'tab-btn px-4 py-3 text-xs font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700';
-    }
+window.mainTab = (tab) => {
+  ['content','members','orders'].forEach(t => {
+    document.getElementById('sec-'+t).classList.toggle('hidden', t!==tab);
+    const btn = document.getElementById('mt-'+t);
+    btn.className = t===tab ? 'tab-active px-4 py-3 text-sm transition' : 'tab-idle px-4 py-3 text-sm transition';
   });
-  if(tab==='registry') loadRegistry();
-}
+  if (tab==='members') loadMembers();
+  if (tab==='orders')  loadOrders();
+};
 
-// ── QUIZ REGISTRY ─────────────────────────────────────────────────
-async function loadRegistry() {
-  try {
-    const r = await fetch('quizzes.json');
-    quizRegistry = await r.json();
-  } catch { quizRegistry = []; }
-  renderRegistry();
-}
-
-function renderRegistry() {
-  const c = document.getElementById('registry-list');
-  if (!quizRegistry.length) {
-    c.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">Tiada quiz lagi. Jana quiz dari tab "Jana Soalan" dahulu.</p>';
-    return;
-  }
-  c.innerHTML = quizRegistry.map((q,i) => `
-    <div class="flex items-center gap-3 p-4 border border-slate-200 rounded-xl bg-white">
-      <div class="flex-1 min-w-0">
-        <div class="font-semibold text-slate-700 text-sm">${q.year} Sejarah ${q.state} Kertas ${q.kertas}</div>
-        <div class="text-xs text-slate-400 mt-0.5">File: ${q.file} &nbsp;·&nbsp; ID: ${q.id}</div>
-      </div>
-      <!-- Active toggle -->
-      <div class="flex flex-col items-center gap-1">
-        <div class="text-xs text-slate-400">Status</div>
-        <button onclick="toggleReg(${i},'active')" class="w-12 h-6 rounded-full transition-colors relative ${q.active?'bg-green-500':'bg-slate-300'}">
-          <span class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${q.active?'right-0.5':'left-0.5'}"></span>
-        </button>
-        <div class="text-xs font-medium ${q.active?'text-green-600':'text-slate-400'}">${q.active?'Aktif':'Off'}</div>
-      </div>
-      <!-- Access toggle -->
-      <div class="flex flex-col items-center gap-1">
-        <div class="text-xs text-slate-400">Akses</div>
-        <button onclick="toggleReg(${i},'access')" class="w-12 h-6 rounded-full transition-colors relative ${q.access==='members'?'bg-amber-500':'bg-indigo-500'}">
-          <span class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${q.access==='members'?'right-0.5':'left-0.5'}"></span>
-        </button>
-        <div class="text-xs font-medium ${q.access==='members'?'text-amber-600':'text-indigo-600'}">${q.access==='members'?'🔒 Ahli':'🆓 Bebas'}</div>
-      </div>
-      <!-- Preview link -->
-      <a href="quiz.html?id=${q.id}" target="_blank" class="text-indigo-500 hover:text-indigo-700 text-xs font-semibold px-3 py-1.5 border border-indigo-200 rounded-lg transition">
-        Cuba →
-      </a>
-    </div>`).join('');
-}
-
-function toggleReg(i, field) {
-  if(field==='active') quizRegistry[i].active = !quizRegistry[i].active;
-  if(field==='access') quizRegistry[i].access = quizRegistry[i].access==='members' ? 'free' : 'members';
-  renderRegistry();
-  document.getElementById('mod-badge').classList.remove('hidden');
-}
-
-function exportRegistry() {
-  const blob = new Blob([JSON.stringify(quizRegistry, null, 2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'quizzes.json'; a.click();
-}
-let pasteTarget = null; // {qIdx, field} — which question + which field (q/a/b/c/d)
-let pendingImg = null;
-
-// ── HELPERS ───────────────────────────────────────────────────────
-function log(msg, type='info') {
-  const log = document.getElementById('gen-log');
-  log.classList.remove('hidden');
-  const d = document.createElement('div');
-  d.className = `log-line log-${type}`;
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  log.appendChild(d);
-  log.scrollTop = log.scrollHeight;
-}
-
-// ── FILE SELECTION ────────────────────────────────────────────────
-const selectedFiles = {soalan: null, jawapan: null};
-
-function onFileSelect(input, labelId, key) {
-  const file = input.files[0];
-  if (!file) return;
-  selectedFiles[key] = file;
-  document.getElementById(labelId).textContent = `✅ ${file.name} (${(file.size/1024).toFixed(0)}KB)`;
-}
-
-// ── GENERATE FROM FILES ───────────────────────────────────────────
-async function generateFromFiles() {
-  if (!selectedFiles.soalan) { alert('Sila pilih fail soalan PDF.'); return; }
-  if (!selectedFiles.jawapan) { alert('Sila pilih fail jawapan PDF.'); return; }
-
-  const quizName = document.getElementById('quiz-name-input').value.trim() || 'Quiz';
-  document.getElementById('gen-btn').disabled = true;
-  document.getElementById('gen-btn').textContent = '⏳ Sedang jana...';
-  document.getElementById('gen-log').innerHTML = '';
-
-  try {
-    log('Menukar PDF soalan ke imej...');
-    const soalanImgs  = await pdfToImages(selectedFiles.soalan);
-    log(`Soalan: ${soalanImgs.length} halaman`, 'ok');
-
-    log('Menukar PDF jawapan ke imej...');
-    const jawapanImgs = await pdfToImages(selectedFiles.jawapan);
-    log(`Jawapan: ${jawapanImgs.length} halaman`, 'ok');
-
-    log('Mengekstrak jawapan dengan AI...');
-    const answers = await extractAnswers(jawapanImgs);
-    log(`Jawapan: [${answers.join(', ')}]`, 'ok');
-
-    log(`Mengekstrak soalan (${soalanImgs.length} halaman, mungkin 30–60 saat)...`);
-    const qs = await extractQuestions(soalanImgs);
-    log(`${qs.length} soalan diekstrak`, 'ok');
-
-    qs.forEach((q, i) => { q.answer = answers[i] || ''; });
-    questions = qs;
-
-    document.getElementById('file-label').textContent = quizName;
-    renderAll();
-    log('✅ Selesai! Semak soalan di bawah dan betulkan jika perlu.', 'ok');
-
-  } catch(e) {
-    log(`ERROR: ${e.message}`, 'err');
-    console.error(e);
-  }
-
-  document.getElementById('gen-btn').disabled = false;
-  document.getElementById('gen-btn').textContent = '🤖 Jana Soalan dengan AI';
-}
-
-// ── PDF → IMAGES (using pdf.js from CDN) ─────────────────────────
-async function pdfToImages(blob) {
-  if (!window.pdfjsLib) {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-  const arrayBuffer = await blob.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-  const images = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({scale: 2});
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
-    images.push(canvas.toDataURL('image/jpeg', 0.85));
-  }
-  return images;
-}
-
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
+window.subTab = (tab) => {
+  currentTab = tab;
+  ['papers','notes','collection','books'].forEach(t => {
+    const btn = document.getElementById('st-'+t);
+    btn.className = t===tab
+      ? 'sub-active text-xs px-3 py-1.5 rounded-lg transition'
+      : 'sub-idle text-xs px-3 py-1.5 rounded-lg transition';
   });
+  // Show/hide year filter (not needed for books/collection)
+  document.getElementById('filter-year').classList.toggle('hidden', tab==='books');
+  loadContent();
+};
+
+// ── SUBJECT FILTER ────────────────────────────────────────────────
+function populateSubjectFilter() {
+  const sel = document.getElementById('filter-subject');
+  SUBJECTS.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
 }
 
-// ── EXTRACT ANSWERS ───────────────────────────────────────────────
-async function extractAnswers(images) {
-  const parts = images.map(img => ({inlineData:{mimeType:'image/jpeg',data:img.split(',')[1]}}));
-  parts.push({text:'Extract all MCQ answers from this answer sheet. Return ONLY a JSON array like ["C","A","B",...] with exactly the answer letter for each question in order. No explanation.'});
+// ── LOAD CONTENT ──────────────────────────────────────────────────
+window.loadContent = async () => {
+  const subject = document.getElementById('filter-subject').value;
+  const year    = document.getElementById('filter-year').value;
+  const list    = document.getElementById('content-list');
+  list.innerHTML = '<div class="text-slate-400 text-sm py-8 text-center">Loading...</div>';
 
-  const resp = await geminiRequest(parts);
-  let raw = resp.trim().replace(/```json|```/g,'').trim();
-  return JSON.parse(raw);
-}
+  let q = query(collection(db,'content'), where('type','==',currentTab));
+  const snap = await getDocs(q);
+  let docs = snap.docs.map(d => ({id:d.id, ...d.data()}));
 
-// ── EXTRACT QUESTIONS ─────────────────────────────────────────────
-async function extractQuestions(images) {
-  const PROMPT = `This is an SPM Sejarah Paper 1 MCQ exam in Malay. Extract ALL questions visible.
-For each question return JSON: {no, q (full text incl. any passage/source), a, b, c, d, img (true if has table/diagram/image that cannot be captured in text)}.
-Return ONLY a valid JSON array. No markdown.`;
+  if (subject) docs = docs.filter(d => d.subject===subject);
+  if (year)    docs = docs.filter(d => String(d.year)===year);
+  docs.sort((a,b) => (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
 
-  // Batch: skip page 0, then groups of 4
-  const batches = [];
-  for (let i = 1; i < images.length; i += 4) {
-    batches.push(images.slice(i, i+4));
-  }
+  if (!docs.length) { list.innerHTML = '<div class="text-slate-400 text-sm py-8 text-center">No items yet. Click + Add to create one.</div>'; return; }
 
-  let allQs = [];
-  for (let bi = 0; bi < batches.length; bi++) {
-    log(`  Batch ${bi+1}/${batches.length}...`);
-    const parts = batches[bi].map(img => ({inlineData:{mimeType:'image/jpeg',data:img.split(',')[1]}}));
-    parts.push({text: PROMPT});
-    const resp = await geminiRequest(parts);
-    let raw = resp.trim().replace(/```json|```/g,'').trim();
-    try {
-      const batch = JSON.parse(raw);
-      allQs = allQs.concat(batch);
-      log(`  Got ${batch.length} questions`, 'ok');
-    } catch(e) {
-      log(`  Parse error batch ${bi+1}: ${e.message}`, 'err');
-    }
-    await sleep(1500);
-  }
+  list.innerHTML = docs.map(d => renderRow(d)).join('');
+};
 
-  // Deduplicate by question number
-  const seen = {};
-  allQs.forEach(q => { if (!seen[q.no]) seen[q.no] = q; });
-  return Object.keys(seen).sort((a,b)=>+a-+b).map(k => seen[k]);
-}
+function renderRow(d) {
+  const accessBadge = d.access==='members'
+    ? '<span class="badge-members text-xs px-2 py-0.5 rounded-full">🔒 Members</span>'
+    : '<span class="badge-free text-xs px-2 py-0.5 rounded-full">🆓 Free</span>';
+  const statusBadge = d.active
+    ? '<span class="badge-active text-xs px-2 py-0.5 rounded-full">● Active</span>'
+    : '<span class="badge-off text-xs px-2 py-0.5 rounded-full">○ Off</span>';
 
-async function geminiRequest(parts) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({contents:[{parts}], generationConfig:{maxOutputTokens:8192}})
-  });
-  const data = await r.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-}
+  const meta = currentTab==='papers' || currentTab==='notes'
+    ? `<span class="text-slate-400">${d.subject||''} · ${d.year||''} ${d.state ? '· '+d.state : ''} ${d.kertas ? '· K'+d.kertas : ''}</span>`
+    : `<span class="text-slate-400">${d.subject||''} ${d.year ? '· '+d.year : ''}</span>`;
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const img = d.imageUrl
+    ? `<img src="${d.imageUrl}" class="thumb mr-3 shrink-0">`
+    : `<div class="w-10 h-10 bg-slate-100 rounded-lg mr-3 shrink-0 flex items-center justify-center text-slate-300 text-lg">${currentTab==='books'?'📚':'📄'}</div>`;
 
-// ── RENDER QUESTIONS ──────────────────────────────────────────────
-function renderAll() {
-  const c = document.getElementById('q-container');
-  c.innerHTML = questions.map((q,i) => renderCard(q,i)).join('');
-}
-
-function renderCard(q, i) {
-  const mkImgBtn = (field, label) => `
-    <button onclick="openPaste(${i},'${field}')" class="ml-1 shrink-0 text-slate-300 hover:text-indigo-500 transition" title="Tambah gambar untuk ${label}">📷</button>`;
-
-  const mkImgPreview = (src) => src ? `
-    <div class="relative inline-block mt-1.5">
-      <img src="${src}" class="img-thumb" onclick="openPaste(${i},'${src.startsWith('data') ? 'qImg' : 'qImg'}')">
-      <button onclick="removeImg(event,${i},'qImg')" class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none flex items-center justify-center">×</button>
-    </div>` : '';
-
-  const optImgPreview = (field) => q[field+'Img'] ? `
-    <div class="relative inline-block mt-1">
-      <img src="${q[field+'Img']}" class="img-thumb">
-      <button onclick="removeImg(event,${i},'${field}Img')" class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none flex items-center justify-center">×</button>
-    </div>` : '';
-
-  return `
-  <div class="card p-5 ${q._modified?'q-modified':''}" id="card-${i}">
-    <div class="flex items-center gap-2 mb-3">
-      <span class="text-xs font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full">S${q.no}</span>
-      ${q.img ? '<span class="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">⚠️ Ada jadual/gambar</span>' : ''}
+  return `<div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 hover:border-indigo-200 transition">
+    ${img}
+    <div class="flex-1 min-w-0">
+      <div class="font-semibold text-slate-700 text-sm truncate">${d.title||'Untitled'}</div>
+      <div class="text-xs mt-0.5 flex flex-wrap gap-1 items-center">${meta}</div>
     </div>
-
-    <!-- Question -->
-    <div class="mb-3">
-      <div class="flex items-center justify-between mb-1">
-        <label class="text-xs font-semibold text-slate-500 uppercase">Soalan</label>
-        ${mkImgBtn('qImg','soalan')}
-      </div>
-      <textarea class="field" rows="3" id="f-q-${i}" oninput="onFieldChange(${i})">${escHtml(q.q||'')}</textarea>
-      ${mkImgPreview(q.qImg)}
-    </div>
-
-    <!-- Options -->
-    <div class="grid grid-cols-2 gap-2.5 mb-3">
-      ${['a','b','c','d'].map(l => `
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="text-xs font-semibold text-slate-400 uppercase">${l}</label>
-            ${mkImgBtn(l+'Img',l.toUpperCase())}
-          </div>
-          <input class="field" type="text" id="f-${l}-${i}" value="${escHtml(q[l]||'')}" oninput="onFieldChange(${i})">
-          ${optImgPreview(l)}
-        </div>`).join('')}
-    </div>
-
-    <!-- Answer selector -->
-    <div class="flex items-center gap-2 flex-wrap">
-      <span class="text-xs font-semibold text-slate-500 uppercase mr-1">Jawapan Betul:</span>
-      ${['A','B','C','D'].map(l=>`
-        <button class="ans-btn ${q.answer===l?'active':''}" id="ans-${l}-${i}" onclick="setAnswer(${i},'${l}')">${l}</button>`).join('')}
+    <div class="flex items-center gap-2 shrink-0">
+      ${accessBadge} ${statusBadge}
+      <button onclick="openModal('${d.id}')" class="text-slate-400 hover:text-indigo-600 text-sm px-2 py-1 rounded-lg hover:bg-indigo-50 transition">Edit</button>
     </div>
   </div>`;
 }
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// ── MODAL ─────────────────────────────────────────────────────────
+window.openModal = async (id=null) => {
+  editingId = id;
+  let data = { type:currentTab, subject:'', year:new Date().getFullYear(), state:'', kertas:'1',
+    title:'', description:'', url:'', quizFile:'', imageUrl:'', price:1.99, access:'free', active:true };
 
-function onFieldChange(i) {
-  questions[i]._modified = true;
-  document.getElementById('card-'+i)?.classList.add('q-modified');
-  document.getElementById('mod-badge')?.classList.remove('hidden');
-  modified = true;
+  if (id) {
+    const snap = await getDoc(doc(db,'content',id));
+    if (snap.exists()) data = {id:snap.id, ...snap.data()};
+  }
+
+  document.getElementById('modal-title').textContent = id ? 'Edit Content' : 'Add Content';
+  document.getElementById('modal-delete-btn').classList.toggle('hidden', !id);
+  document.getElementById('modal-body').innerHTML = buildForm(data);
+  document.getElementById('modal').classList.remove('hidden');
+  document.addEventListener('paste', handlePasteImg);
+};
+
+window.closeModal = () => {
+  document.getElementById('modal').classList.add('hidden');
+  document.removeEventListener('paste', handlePasteImg);
+  editingId = null;
+};
+
+function buildForm(d) {
+  const isPaperNote = d.type==='papers' || d.type==='notes';
+  const isBook = d.type==='books';
+  const isColl = d.type==='collection';
+
+  const subjectOpts = SUBJECTS.map(s=>`<option ${d.subject===s?'selected':''}>${s}</option>`).join('');
+  const stateOpts   = STATES.map(s=>`<option ${d.state===s?'selected':''}>${s}</option>`).join('');
+
+  const imgSection = `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Image / Cover</label>
+      ${d.imageUrl ? `<img src="${d.imageUrl}" id="img-preview" class="thumb mb-2">` : `<img id="img-preview" class="thumb mb-2 hidden">`}
+      <div class="paste-zone text-xs text-slate-400" ondragover="event.preventDefault()" ondrop="handleDropImg(event)">
+        📋 Paste (Cmd+V), drag & drop, or
+        <label class="text-indigo-500 font-semibold cursor-pointer hover:underline ml-1">
+          choose file<input type="file" accept="image/*" class="hidden" onchange="handleFileImg(this)">
+        </label>
+      </div>
+      <input type="hidden" id="f-imageUrl" value="${d.imageUrl||''}">
+    </div>`;
+
+  return `
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Subject *</label>
+        <select class="field" id="f-subject"><option value="">Select...</option>${subjectOpts}</select>
+      </div>
+      ${isPaperNote ? `
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Year</label>
+        <input class="field" type="number" id="f-year" value="${d.year||''}">
+      </div>` : `
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Year</label>
+        <input class="field" type="number" id="f-year" value="${d.year||''}">
+      </div>`}
+    </div>
+
+    ${isPaperNote ? `
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">State</label>
+        <select class="field" id="f-state"><option value="">Select / N/A</option>${stateOpts}</select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Kertas</label>
+        <select class="field" id="f-kertas">
+          <option ${d.kertas=='1'?'selected':''}>1</option>
+          <option ${d.kertas=='2'?'selected':''}>2</option>
+          <option ${d.kertas=='1&2'?'selected':''}>1&2</option>
+        </select>
+      </div>
+    </div>` : ''}
+
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Title *</label>
+      <input class="field" type="text" id="f-title" value="${escAttr(d.title||'')}">
+    </div>
+
+    ${isBook ? `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Description</label>
+      <textarea class="field" rows="3" id="f-description">${d.description||''}</textarea>
+    </div>` : ''}
+
+    ${isPaperNote ? `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Drive URL (view only)</label>
+      <input class="field" type="text" id="f-url" placeholder="https://drive.google.com/file/d/..." value="${escAttr(d.url||'')}">
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Quiz JSON filename (optional)</label>
+      <input class="field" type="text" id="f-quizFile" placeholder="quiz_2025_kedah_k1.json" value="${escAttr(d.quizFile||'')}">
+    </div>` : `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Drive URL</label>
+      <input class="field" type="text" id="f-url" placeholder="https://drive.google.com/file/d/..." value="${escAttr(d.url||'')}">
+    </div>`}
+
+    ${isColl || isBook ? `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Price (RM)</label>
+      <input class="field" type="number" step="0.01" id="f-price" value="${d.price||1.99}">
+    </div>` : ''}
+
+    ${isBook ? imgSection : ''}
+    ${isColl ? imgSection : ''}
+
+    <div class="grid grid-cols-2 gap-4 pt-2">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase mb-2">Access</div>
+        <div class="flex gap-3">
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="radio" name="r-access" value="free" ${d.access!=='members'?'checked':''}>
+            <span>🆓 Free</span>
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="radio" name="r-access" value="members" ${d.access==='members'?'checked':''}>
+            <span>🔒 Members</span>
+          </label>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase mb-2">Status</div>
+        <label class="toggle">
+          <input type="checkbox" id="f-active" ${d.active?'checked':''}>
+          <span class="slider"></span>
+        </label>
+        <span class="text-xs text-slate-400 ml-2">Active</span>
+      </div>
+    </div>`;
 }
 
-function setAnswer(i, l) {
-  questions[i].answer = l;
-  ['A','B','C','D'].forEach(x => {
-    document.getElementById(`ans-${x}-${i}`)?.classList.toggle('active', x===l);
-  });
-  onFieldChange(i);
-}
-
-function removeImg(e, i, field) {
-  e.stopPropagation();
-  delete questions[i][field];
-  onFieldChange(i);
-  refreshCard(i);
-}
-
-function refreshCard(i) {
-  syncCardToData(i);
-  const card = document.getElementById('card-'+i);
-  if (card) { const tmp = document.createElement('div'); tmp.innerHTML = renderCard(questions[i],i); card.replaceWith(tmp.firstElementChild); }
-}
-
-function syncCardToData(i) {
-  const q = questions[i];
-  const qt = document.getElementById(`f-q-${i}`); if (qt) q.q = qt.value;
-  ['a','b','c','d'].forEach(l => { const el = document.getElementById(`f-${l}-${i}`); if (el) q[l] = el.value; });
-}
-
-// ── PASTE / IMAGE MODAL ───────────────────────────────────────────
-function openPaste(qIdx, field) {
-  pasteTarget = {qIdx, field};
-  pendingImg = null;
-  document.getElementById('paste-title').textContent = `Gambar untuk Soalan ${questions[qIdx].no} — ${field === 'qImg' ? 'Soalan' : field.toUpperCase()}`;
-  document.getElementById('paste-preview').classList.add('hidden');
-  document.getElementById('paste-save-btn').classList.add('hidden');
-  document.getElementById('paste-modal').classList.remove('hidden');
-  document.addEventListener('paste', handleGlobalPaste);
-}
-
-function closePasteModal() {
-  document.getElementById('paste-modal').classList.add('hidden');
-  document.removeEventListener('paste', handleGlobalPaste);
-  pasteTarget = null; pendingImg = null;
-}
-
-function handleGlobalPaste(e) {
-  const items = e.clipboardData?.items;
-  for (const item of (items||[])) {
-    if (item.type.startsWith('image/')) { readImgFile(item.getAsFile()); break; }
+// ── IMAGE HANDLING ─────────────────────────────────────────────────
+function handlePasteImg(e) {
+  for (const item of (e.clipboardData?.items||[])) {
+    if (item.type.startsWith('image/')) { readImg(item.getAsFile()); break; }
   }
 }
-
-function handleModalDrop(e) {
+window.handleDropImg = (e) => {
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (f && f.type.startsWith('image/')) readImgFile(f);
-}
+  if (f?.type.startsWith('image/')) readImg(f);
+};
+window.handleFileImg = (input) => { if (input.files[0]) readImg(input.files[0]); };
 
-function handleModalFile(input) { if (input.files[0]) readImgFile(input.files[0]); }
-
-function readImgFile(file) {
+function readImg(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    pendingImg = e.target.result;
-    document.getElementById('paste-img').src = pendingImg;
-    document.getElementById('paste-preview').classList.remove('hidden');
-    document.getElementById('paste-save-btn').classList.remove('hidden');
+    const src = e.target.result;
+    const prev = document.getElementById('img-preview');
+    if (prev) { prev.src=src; prev.classList.remove('hidden'); }
+    const inp = document.getElementById('f-imageUrl');
+    if (inp) inp.value = src;
   };
   reader.readAsDataURL(file);
 }
 
-function confirmPasteImg() {
-  if (!pendingImg || !pasteTarget) return;
-  const {qIdx, field} = pasteTarget;
-  syncCardToData(qIdx);
-  questions[qIdx][field] = pendingImg;
-  onFieldChange(qIdx);
-  closePasteModal();
-  refreshCard(qIdx);
+// ── SAVE CONTENT ──────────────────────────────────────────────────
+window.saveContent = async () => {
+  const get = id => document.getElementById(id);
+  const data = {
+    type:     currentTab,
+    subject:  get('f-subject')?.value || '',
+    year:     parseInt(get('f-year')?.value) || null,
+    state:    get('f-state')?.value || '',
+    kertas:   get('f-kertas')?.value || '',
+    title:    get('f-title')?.value.trim() || '',
+    description: get('f-description')?.value || '',
+    url:      get('f-url')?.value.trim() || '',
+    quizFile: get('f-quizFile')?.value.trim() || '',
+    imageUrl: get('f-imageUrl')?.value || '',
+    price:    parseFloat(get('f-price')?.value) || 0,
+    access:   document.querySelector('input[name="r-access"]:checked')?.value || 'free',
+    active:   get('f-active')?.checked ?? true,
+  };
+
+  if (!data.title || !data.subject) { alert('Title and Subject are required.'); return; }
+
+  try {
+    if (editingId) {
+      await updateDoc(doc(db,'content',editingId), data);
+    } else {
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db,'content'), data);
+    }
+    closeModal();
+    loadContent();
+  } catch(e) { alert('Error: '+e.message); }
+};
+
+window.deleteContent = async () => {
+  if (!editingId || !confirm('Delete this item?')) return;
+  await deleteDoc(doc(db,'content',editingId));
+  closeModal();
+  loadContent();
+};
+
+// ── MEMBERS ───────────────────────────────────────────────────────
+window.loadMembers = async () => {
+  const snap = await getDocs(collection(db,'users'));
+  allMembers = snap.docs.map(d => ({id:d.id,...d.data()}));
+  renderMembers(allMembers);
+};
+
+window.filterMembers = () => {
+  const q = document.getElementById('member-search').value.toLowerCase();
+  renderMembers(allMembers.filter(m =>
+    (m.email||'').toLowerCase().includes(q) ||
+    (m.name||'').toLowerCase().includes(q) ||
+    (m.school||'').toLowerCase().includes(q)
+  ));
+};
+
+function renderMembers(list) {
+  const body = document.getElementById('members-body');
+  document.getElementById('members-empty').classList.toggle('hidden', list.length>0);
+  body.innerHTML = list.map(m => `
+    <tr class="hover:bg-slate-50">
+      <td class="px-4 py-3 text-xs text-slate-600">${m.email||'-'}</td>
+      <td class="px-4 py-3 text-xs">${m.name||'-'}</td>
+      <td class="px-4 py-3 text-xs">${m.phone||'-'}</td>
+      <td class="px-4 py-3 text-xs">${m.school||'-'}</td>
+      <td class="px-4 py-3 text-xs text-slate-400">${m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString() : '-'}</td>
+      <td class="px-4 py-3">${m.isPremium ? '<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ Premium</span>' : '<span class="text-xs text-slate-400">Free</span>'}</td>
+    </tr>`).join('');
 }
 
-// ── LOAD JSON FILE ────────────────────────────────────────────────
-function loadJSONFile(input) {
-  const file = input.files[0]; if (!file) return;
-  document.getElementById('file-label').textContent = file.name;
-  const r = new FileReader();
-  r.onload = e => { questions = JSON.parse(e.target.result); renderAll(); };
-  r.readAsText(file);
-}
+// ── ORDERS ────────────────────────────────────────────────────────
+window.loadOrders = async () => {
+  const snap = await getDocs(query(collection(db,'orders'), orderBy('createdAt','desc')));
+  const orders = snap.docs.map(d => ({id:d.id,...d.data()}));
+  const body = document.getElementById('orders-body');
+  document.getElementById('orders-empty').classList.toggle('hidden', orders.length>0);
+  body.innerHTML = orders.map(o => `
+    <tr class="hover:bg-slate-50">
+      <td class="px-4 py-3 text-xs text-slate-400">${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '-'}</td>
+      <td class="px-4 py-3 text-xs font-medium">${o.name||'-'}</td>
+      <td class="px-4 py-3 text-xs">${o.phone||'-'}</td>
+      <td class="px-4 py-3 text-xs text-slate-600 max-w-xs truncate">${(o.items||[]).map(i=>i.title||i).join(', ')||'-'}</td>
+      <td class="px-4 py-3 text-xs font-semibold">RM${(o.total||0).toFixed(2)}</td>
+      <td class="px-4 py-3"><span class="text-xs px-2 py-0.5 rounded-full ${o.status==='paid'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${o.status||'pending'}</span></td>
+    </tr>`).join('');
+};
 
-// ── EXPORT JSON ───────────────────────────────────────────────────
-function exportJSON() {
-  questions.forEach((q,i) => {
-    syncCardToData(i);
-    delete q._modified;
-  });
-  const name = document.getElementById('quiz-name-input')?.value.trim() || 'quiz';
-  const safe = name.replace(/[^a-z0-9]+/gi,'_').toLowerCase();
-  const blob = new Blob([JSON.stringify(questions, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = safe + '.json';
-  a.click();
-  modified = false;
-  document.getElementById('mod-badge').classList.add('hidden');
-}
+// ── UTILS ──────────────────────────────────────────────────────────
+function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
-window.onbeforeunload = e => { if (modified) return 'Ada perubahan belum disimpan!'; };
 </script>
 </body>
 </html>
