@@ -107,6 +107,44 @@
       <div id="content-list" class="space-y-2"></div>
     </div>
 
+    <!-- Q&A EDITOR (replaces content body, for Notes tab) -->
+    <div id="qa-editor" class="hidden">
+      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex items-center gap-3 flex-wrap">
+        <button onclick="closeQAEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Notes</button>
+        <div class="h-4 w-px bg-slate-200"></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-700" id="qae-title">Q&A Editor</div>
+          <div class="text-xs text-slate-400" id="qae-subtitle"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400" id="qae-count"></span>
+          <button id="qae-save-btn" onclick="saveQA()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Save Q&A</button>
+        </div>
+      </div>
+
+      <!-- AI Extraction Panel (Q&A) -->
+      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+        <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan Esei)</div>
+        <div class="flex gap-2 flex-wrap items-center mb-3">
+          <input id="gemini-key-qa" type="password" placeholder="Gemini API Key" class="field" style="max-width:280px">
+          <label class="flex items-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
+            📄 Upload PDF
+            <input type="file" accept="application/pdf" class="hidden" onchange="extractQAFromPdf(this)">
+          </label>
+        </div>
+        <div id="qa-extract-log" class="bg-slate-50 rounded-lg p-2 max-h-28 overflow-y-auto hidden"></div>
+      </div>
+
+      <!-- Q&A List -->
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-semibold text-slate-700 text-sm">Soalan & Jawapan</div>
+          <button onclick="addQAQuestion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">+ Tambah Soalan</button>
+        </div>
+        <div id="qae-list"></div>
+      </div>
+    </div>
+
     <!-- QUIZ EDITOR (replaces content body) -->
     <div id="quiz-editor" class="hidden">
       <!-- Header -->
@@ -160,7 +198,8 @@
           <tr class="text-xs text-slate-500 uppercase">
             <th class="px-4 py-3 text-left">Email</th><th class="px-4 py-3 text-left">Name</th>
             <th class="px-4 py-3 text-left">Phone</th><th class="px-4 py-3 text-left">School</th>
-            <th class="px-4 py-3 text-left">Joined</th><th class="px-4 py-3 text-left">Premium</th>
+            <th class="px-4 py-3 text-left">Subjects (Access)</th>
+            <th class="px-4 py-3 text-left">Joined</th>
           </tr>
         </thead>
         <tbody id="members-body" class="divide-y divide-slate-100"></tbody>
@@ -220,7 +259,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp }
+import { getFirestore, collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, arrayUnion, arrayRemove }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -391,14 +430,20 @@ function renderGenericRow(d) {
     : `<div class="w-10 h-10 bg-slate-100 rounded-lg mr-3 shrink-0 flex items-center justify-center text-slate-300 text-lg">${currentTab==='books'?'📚':'📄'}</div>`;
   const meta = `<span class="text-slate-400">${d.subject||''} ${d.year?'· '+d.year:''} ${d.kertas?'· K'+d.kertas:''}</span>`;
 
+  const qaBtn = currentTab === 'notes'
+    ? `<button onclick="openQAEditor('${d.id}','${(d.qaId||'')}')"
+        class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
+        📝 ${d.qaId ? 'Q&A ✓' : 'Q&A (setup)'}
+      </button>`
+    : '';
   return `<div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 hover:border-indigo-200 transition">
     ${img}
     <div class="flex-1 min-w-0">
       <div class="font-semibold text-slate-700 text-sm truncate">${d.title||'Untitled'}</div>
       <div class="text-xs mt-0.5">${meta}</div>
     </div>
-    <div class="flex items-center gap-2 shrink-0">
-      ${accessBadge} ${statusBadge}
+    <div class="flex items-center gap-2 shrink-0 flex-wrap">
+      ${qaBtn} ${accessBadge} ${statusBadge}
       <button onclick="openModal('${d.id}')" class="text-slate-400 hover:text-indigo-600 text-sm px-2 py-1 rounded-lg hover:bg-indigo-50 transition">Edit</button>
     </div>
   </div>`;
@@ -978,10 +1023,39 @@ function renderMembers(list) {
       <td class="px-4 py-3 text-xs">${m.name||'-'}</td>
       <td class="px-4 py-3 text-xs">${m.phone||'-'}</td>
       <td class="px-4 py-3 text-xs">${m.school||'-'}</td>
+      <td class="px-4 py-3 text-xs">
+        <div class="flex flex-wrap gap-1 mb-1.5">
+          ${(m.subjects||[]).map(s=>`
+            <span class="inline-flex items-center gap-0.5 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">
+              ${s}
+              <button onclick="revokeSubject('${m.id}','${s}')" class="text-red-400 hover:text-red-600 font-bold leading-none">×</button>
+            </span>`).join('')}
+        </div>
+        <div class="flex items-center gap-1">
+          <select id="subj-sel-${m.id}" class="field text-xs" style="max-width:110px;padding:3px 6px">
+            <option value="">+ Grant...</option>
+            ${SUBJECTS.map(s=>`<option>${s}</option>`).join('')}
+          </select>
+          <button onclick="grantSubject('${m.id}')" class="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded transition">✓</button>
+        </div>
+      </td>
       <td class="px-4 py-3 text-xs text-slate-400">${m.createdAt?.toDate?m.createdAt.toDate().toLocaleDateString():'-'}</td>
-      <td class="px-4 py-3">${m.isPremium?'<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ Premium</span>':'<span class="text-xs text-slate-400">Free</span>'}</td>
     </tr>`).join('');
 }
+
+window.grantSubject = async (uid) => {
+  const sel = document.getElementById('subj-sel-'+uid);
+  const subject = sel?.value;
+  if (!subject) return;
+  await updateDoc(doc(db,'users',uid), { subjects: arrayUnion(subject) });
+  sel.value = '';
+  loadMembers();
+};
+window.revokeSubject = async (uid, subject) => {
+  if (!confirm(`Remove ${subject} access for this user?`)) return;
+  await updateDoc(doc(db,'users',uid), { subjects: arrayRemove(subject) });
+  loadMembers();
+};
 
 // ── ORDERS ────────────────────────────────────────────────────────
 window.loadOrders = async () => {
@@ -997,6 +1071,222 @@ window.loadOrders = async () => {
       <td class="px-4 py-3 text-xs font-semibold">RM${(o.total||0).toFixed(2)}</td>
       <td class="px-4 py-3"><span class="text-xs px-2 py-0.5 rounded-full ${o.status==='paid'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${o.status||'pending'}</span></td>
     </tr>`).join('');
+};
+
+// ── Q&A EDITOR ────────────────────────────────────────────────────
+let qaeContentId = null, qaeQAId = null, qaeQuestions = [], qaeExpanded = null;
+
+window.openQAEditor = async (contentId, qaId) => {
+  qaeContentId = contentId; qaeQAId = qaId || null; qaeQuestions = []; qaeExpanded = null;
+  if (qaeQAId) {
+    const snap = await getDoc(doc(db,'qa',qaeQAId));
+    if (snap.exists()) qaeQuestions = snap.data().questions || [];
+  }
+  const contentSnap = await getDoc(doc(db,'content',contentId));
+  const cd = contentSnap.exists() ? contentSnap.data() : {};
+  document.getElementById('qae-title').textContent = `${cd.title||'Note'} — Q&A Editor`;
+  document.getElementById('qae-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}`;
+  const keyEl = document.getElementById('gemini-key-qa');
+  if (keyEl) keyEl.value = localStorage.getItem('allite_gkey') || '';
+  document.getElementById('qa-extract-log').classList.add('hidden');
+  document.getElementById('qa-extract-log').innerHTML = '';
+  document.getElementById('sec-content-body').classList.add('hidden');
+  document.getElementById('quiz-editor').classList.add('hidden');
+  document.getElementById('qa-editor').classList.remove('hidden');
+  renderQAList();
+};
+
+window.closeQAEditor = () => {
+  document.getElementById('qa-editor').classList.add('hidden');
+  document.getElementById('sec-content-body').classList.remove('hidden');
+  qaeContentId = null; qaeQAId = null; qaeQuestions = []; qaeExpanded = null;
+  loadContent();
+};
+
+window.saveQA = async () => {
+  if (!qaeContentId) return;
+  const btn = document.getElementById('qae-save-btn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  try {
+    if (qaeQAId) {
+      await updateDoc(doc(db,'qa',qaeQAId), { questions: qaeQuestions, updatedAt: serverTimestamp() });
+    } else {
+      const ref = await addDoc(collection(db,'qa'), {
+        contentId: qaeContentId, questions: qaeQuestions, createdAt: serverTimestamp()
+      });
+      qaeQAId = ref.id;
+      await updateDoc(doc(db,'content',qaeContentId), { qaId: qaeQAId });
+    }
+    btn.textContent = '✅ Saved!';
+    setTimeout(() => { btn.textContent = '💾 Save Q&A'; btn.disabled = false; }, 2000);
+    renderQAList();
+  } catch(e) { btn.textContent = '💾 Save Q&A'; btn.disabled = false; alert('Error: '+e.message); }
+};
+
+function renderQAList() {
+  const count = qaeQuestions.length;
+  document.getElementById('qae-count').textContent = `${count} soalan`;
+  const list = document.getElementById('qae-list');
+  if (!count) { list.innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">Tiada soalan. Upload PDF atau klik + Tambah.</div>'; return; }
+  list.innerHTML = qaeQuestions.map((q,i) => renderQACard(q,i)).join('');
+}
+
+function renderQACard(q, i) {
+  const exp = qaeExpanded === i;
+  return `<div class="q-card ${exp?'expanded':''}" id="qac-${i}">
+    <div class="q-header select-none" onclick="toggleQACard(${i})">
+      <span class="text-xs font-bold text-green-600 shrink-0 w-8">S${q.no||i+1}</span>
+      <span class="text-sm text-slate-600 flex-1 truncate">${escHtml(q.q||'(kosong)')}</span>
+      <span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded shrink-0">${q.marks||0}m</span>
+      <span class="text-slate-300 text-xs shrink-0">${exp?'▲':'▼'}</span>
+    </div>
+    ${exp ? renderQACardBody(q, i) : ''}
+  </div>`;
+}
+
+function renderQACardBody(q, i) {
+  const kwStr = (q.keywords||[]).join(', ');
+  return `<div class="q-body space-y-2 pt-2">
+    <div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Soalan</div>
+      <textarea class="field text-sm" rows="2" oninput="qaeSet(${i},'q',this.value)">${escHtml(q.q||'')}</textarea>
+    </div>
+    <div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Gambar soalan (optional)</div>
+      ${q.qImg ? `<div class="mb-1 flex items-start gap-2"><img src="${q.qImg}" class="max-h-24 rounded-lg border border-slate-200">
+        <button onclick="qaeSet(${i},'qImg','');renderQAList()" class="text-xs text-red-400 hover:underline">× Buang</button></div>` : ''}
+      <div class="paste-zone text-xs text-slate-400" onclick="triggerQAImg(${i})"
+        ondragover="event.preventDefault()" ondrop="dropQAImg(event,${i})">
+        📋 Paste / drag / klik
+        <input type="file" accept="image/*" class="hidden" id="qaimg-${i}" onchange="fileQAImg(this,${i})">
+      </div>
+    </div>
+    <div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Jawapan Model</div>
+      <textarea class="field text-sm" rows="4" oninput="qaeSet(${i},'answer',this.value)">${escHtml(q.answer||'')}</textarea>
+    </div>
+    <div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Keywords untuk highlight (pisahkan dengan koma)</div>
+      <input class="field text-sm" type="text" value="${escAttr(kwStr)}"
+        oninput="qaeSet(${i},'keywords',this.value.split(',').map(k=>k.trim()).filter(Boolean))"
+        placeholder="contoh: Perjanjian Pangkor, Residen British, 1874">
+    </div>
+    <div class="flex items-center gap-3 pt-1">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500">Markah:</span>
+        <input class="field text-sm w-16" type="number" value="${q.marks||4}" oninput="qaeSet(${i},'marks',parseInt(this.value)||0)">
+      </div>
+      <button onclick="qaeDel(${i})" class="ml-auto text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition">🗑 Padam</button>
+    </div>
+  </div>`;
+}
+
+window.toggleQACard = (i) => { qaeExpanded = qaeExpanded===i ? null : i; renderQAList(); };
+window.qaeSet = (i, f, v) => { if (qaeQuestions[i]) qaeQuestions[i][f] = v; };
+window.qaeDel = (i) => {
+  if (!confirm('Padam soalan ini?')) return;
+  qaeQuestions.splice(i,1); qaeExpanded=null; renderQAList();
+};
+window.addQAQuestion = () => {
+  qaeQuestions.push({ no:qaeQuestions.length+1, q:'', qImg:'', answer:'', keywords:[], marks:4 });
+  qaeExpanded = qaeQuestions.length-1; renderQAList();
+  setTimeout(() => document.getElementById(`qac-${qaeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 80);
+};
+window.triggerQAImg = (i) => document.getElementById(`qaimg-${i}`)?.click();
+window.fileQAImg    = (inp,i) => { if(inp.files[0]) readQAImg(inp.files[0],i); };
+window.dropQAImg    = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) readQAImg(f,i); };
+function readQAImg(file, i) {
+  const r = new FileReader();
+  r.onload = e => { qaeSet(i,'qImg',e.target.result); renderQAList(); };
+  r.readAsDataURL(file);
+}
+
+document.addEventListener('paste', e => {
+  if (qaeExpanded === null) return;
+  if (!document.getElementById('qa-editor') || document.getElementById('qa-editor').classList.contains('hidden')) return;
+  for (const item of (e.clipboardData?.items||[])) {
+    if (item.type.startsWith('image/')) { readQAImg(item.getAsFile(), qaeExpanded); break; }
+  }
+});
+
+// ── Q&A PDF EXTRACTION ────────────────────────────────────────────
+window.extractQAFromPdf = async (input) => {
+  if (!input.files[0]) return;
+  const key = document.getElementById('gemini-key-qa').value.trim();
+  if (!key) { alert('Masukkan Gemini API key.'); return; }
+  localStorage.setItem('allite_gkey', key);
+  try { await setDoc(doc(db,'config','app'), { geminiKey: key }, { merge: true }); } catch(e) {}
+
+  const logEl = document.getElementById('qa-extract-log');
+  logEl.classList.remove('hidden'); logEl.innerHTML = '';
+  const log = (msg, cls='log-info') => {
+    const d = document.createElement('div'); d.className='log-line '+cls; d.textContent=msg;
+    logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  };
+
+  log('📄 Membaca PDF...');
+  const buf = await input.files[0].arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  log(`📖 ${pdf.numPages} halaman dijumpai`);
+
+  const images = [];
+  for (let p=1; p<=pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({scale:2});
+    const canvas = document.createElement('canvas');
+    canvas.width=vp.width; canvas.height=vp.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    images.push(canvas.toDataURL('image/jpeg',0.85).split(',')[1]);
+    log(`🖼 Halaman ${p}/${pdf.numPages} siap`);
+  }
+
+  log('🤖 Menghantar ke Gemini AI...');
+  const BATCH = 3;
+  let all = [];
+
+  for (let s=0; s<images.length; s+=BATCH) {
+    if (s > 0) await new Promise(r => setTimeout(r, 2500));
+    const batch = images.slice(s, s+BATCH);
+    const pages = `${s+1}–${Math.min(s+BATCH, pdf.numPages)}`;
+    log(`🤖 Memproses halaman ${pages}...`);
+    const parts = [
+      { text: `Extract ALL essay/structured questions from these SPM exam pages (pages ${pages}).
+Return ONLY a JSON array (no other text):
+[{
+  "no": 1,
+  "q": "full question text",
+  "qImg": "",
+  "answer": "complete model answer with all marking points",
+  "keywords": ["important keyword1", "keyword2", "key phrase 3"],
+  "marks": 8
+}]
+For keywords: include 3-8 key terms/phrases that must appear in a good answer — these will be highlighted for students.
+Include ALL questions found. Return ONLY the JSON array.` },
+      ...batch.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
+    ];
+    const result = await geminiRequest(key, parts);
+    if (result.error) { log(`❌ Halaman ${pages}: ${result.error}`, 'log-err'); continue; }
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const qs = JSON.parse(match[0]);
+        all.push(...qs);
+        log(`✅ ${qs.length} soalan dari halaman ${pages}`, 'log-ok');
+      } catch(e) { log(`⚠️ JSON error halaman ${pages}`, 'log-err'); }
+    } else {
+      log(`⚠️ Tiada soalan dari halaman ${pages}`);
+    }
+  }
+
+  const seen = new Set();
+  const unique = all.filter(q=>{ if(seen.has(q.no)) return false; seen.add(q.no); return true; })
+    .sort((a,b)=>(a.no||0)-(b.no||0))
+    .map(q => ({ ...q, qImg: qaeQuestions.find(e=>e.no===q.no)?.qImg||'' }));
+
+  qaeQuestions = unique; qaeExpanded = null; renderQAList();
+  log(`🎉 Selesai — ${unique.length} soalan diekstrak (dengan keywords).`, 'log-ok');
+  input.value = '';
 };
 
 // ── UTILS ──────────────────────────────────────────────────────────

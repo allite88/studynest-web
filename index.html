@@ -62,18 +62,25 @@
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     };
 
+    window._loadQA = async (qaId) => {
+      try {
+        const snap = await getDoc(doc(db,'qa',qaId));
+        return snap.exists() ? {id:snap.id,...snap.data()} : null;
+      } catch(e) { return null; }
+    };
+
     onAuthStateChanged(auth, async user => {
-      let premium = false;
+      let userData = null;
       let needsProfile = false;
       if (user) {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (snap.exists()) {
-          premium = snap.data().isPremium === true;
+          userData = snap.data();
         } else {
           needsProfile = true;
         }
       }
-      window._onAuth(user, premium, needsProfile);
+      window._onAuth(user, userData, needsProfile);
     });
   </script>
 
@@ -839,6 +846,45 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
+     UNLOCK SUBJECT MODAL
+════════════════════════════════════════════════════════════════ -->
+<div id="modal-unlock" class="hidden fixed inset-0 z-[100] flex items-center justify-center px-4"
+  style="background:rgba(0,0,0,.45);backdrop-filter:blur(4px)"
+  onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-sm text-center">
+    <div class="text-3xl mb-3">🔓</div>
+    <h2 class="font-bold text-lg mb-1" style="color:var(--text)">Buka Akses <span id="unlock-subject-name"></span></h2>
+    <p class="text-sm mb-2" style="color:var(--muted)">Trial Papers + Notes — bayaran sekali, akses seumur hidup.</p>
+    <div class="text-4xl font-extrabold my-4" style="color:var(--text)">RM 9.90</div>
+    <a id="unlock-wa-btn" href="" target="_blank"
+      class="btn-primary w-full font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors mb-2">
+      💬 WhatsApp Admin untuk Bayar
+    </a>
+    <p class="text-xs mb-3" style="color:var(--muted)">Admin aktifkan akses anda dalam masa 24 jam selepas bayaran.</p>
+    <button onclick="document.getElementById('modal-unlock').classList.add('hidden')"
+      class="text-xs" style="color:var(--muted)">← Kembali</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     Q&A VIEWER MODAL
+════════════════════════════════════════════════════════════════ -->
+<div id="qa-modal" class="hidden fixed inset-0 z-[95] flex items-center justify-center px-3 py-4"
+  style="background:rgba(0,0,0,.5)" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="bg-white rounded-2xl w-full max-w-2xl flex flex-col" style="max-height:88vh">
+    <div class="px-5 py-3 border-b border-green-100 flex items-center justify-between shrink-0">
+      <div>
+        <div class="font-bold text-sm" id="qa-modal-title" style="color:var(--text)"></div>
+        <div class="text-xs" style="color:var(--muted)">📝 Soalan & Jawapan Model — keyword dihighlight</div>
+      </div>
+      <button onclick="document.getElementById('qa-modal').classList.add('hidden')"
+        class="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center shrink-0">×</button>
+    </div>
+    <div id="qa-modal-body" class="flex-1 overflow-y-auto p-5"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
      REGISTRATION MODAL
 ════════════════════════════════════════════════════════════════ -->
 <div id="modal-reg" class="hidden fixed inset-0 z-[100] flex items-center justify-center px-4"
@@ -879,10 +925,12 @@
 </style>
 <script>
 /* ── Auth ──────────────────────────────────────────────────────── */
-let currentUser = null, userPremium = false;
+let currentUser = null, userSubjects = [];
 
-window._onAuth = function(user, premium, needsProfile) {
-  currentUser = user; userPremium = premium;
+window._onAuth = function(user, userData, needsProfile) {
+  currentUser = user;
+  userSubjects = userData?.subjects || [];
+  const hasPaid = userSubjects.length > 0;
   const btnLogin  = document.getElementById('btn-login');
   const userChip  = document.getElementById('user-chip');
   const badgePrem = document.getElementById('badge-prem');
@@ -890,7 +938,7 @@ window._onAuth = function(user, premium, needsProfile) {
     btnLogin.classList.add('hidden'); btnLogin.classList.remove('flex');
     userChip.classList.remove('hidden'); userChip.classList.add('flex');
     document.getElementById('user-avatar').src = user.photoURL||'';
-    if (premium) badgePrem.classList.remove('hidden');
+    if (hasPaid) { badgePrem.classList.remove('hidden'); badgePrem.textContent = '⭐ ' + userSubjects.join(', '); }
     else badgePrem.classList.add('hidden');
     if (needsProfile) showRegModal(user.displayName || '');
   } else {
@@ -900,6 +948,8 @@ window._onAuth = function(user, premium, needsProfile) {
   }
   if (!document.getElementById('pg-notes').classList.contains('hidden'))
     loadNotesPage();
+  if (!document.getElementById('pg-papers').classList.contains('hidden'))
+    renderPapers();
 };
 
 /* ── Registration modal ─────────────────────────────────────────── */
@@ -1009,19 +1059,34 @@ function paperCard(p) {
   const slots = p.slots || {};
   const SLOT_LABELS = { k1:'K1', k2:'K2', k12:'K1&2', view:'View' };
   const isMember = p.access === 'members';
+  const userHasAccess = !isMember || userSubjects.includes(p.subject);
+
+  // Locked card — show unlock prompt
+  if (isMember && !userHasAccess) {
+    return `<div class="card p-4" style="border-color:#fde68a">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-semibold text-sm" style="color:var(--text)">${p.title||'Untitled'}</span>
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">🔒 Ahli</span>
+      </div>
+      <p class="text-xs mb-3" style="color:var(--muted)">Set ini untuk ahli ${p.subject} sahaja.</p>
+      <button onclick="showUnlockModal('${p.subject}')"
+        class="w-full btn-amber text-xs font-bold py-1.5 rounded-lg transition-colors">
+        🔓 Buka ${p.subject} — RM 9.90
+      </button>
+    </div>`;
+  }
 
   let rows = '';
   for (const [key, lbl] of Object.entries(SLOT_LABELS)) {
     const slot = slots[key] || {};
     if (!slot.type || slot.type === 'none') continue;
-    const lock = isMember ? '🔒 ' : '';
     let btn = '';
     if (slot.type === 'quiz' && slot.quizId) {
       btn = `<a href="quiz.html?id=${slot.quizId}"
-        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">🎯 ${lock}Latih</a>`;
+        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">🎯 Latih</a>`;
     } else if (slot.type === 'pdf' && slot.url) {
       btn = `<button onclick="openPdfViewer('${encodeURIComponent(slot.url)}','${p.title||''} ${lbl}')"
-        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📄 ${lock}Lihat</button>`;
+        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📄 Lihat</button>`;
     }
     if (!btn) continue;
     let jawBtn = '';
@@ -1035,7 +1100,6 @@ function paperCard(p) {
     </div>`;
   }
 
-  // Jawapan row if no K1 slot (standalone jawapan)
   if (slots.jaw?.url && !slots.k1?.type) {
     rows += `<div class="flex items-center justify-between py-1.5">
       <span class="text-sm" style="color:var(--muted)">Jawapan</span>
@@ -1049,7 +1113,7 @@ function paperCard(p) {
   return `<div class="card p-4">
     <div class="flex items-center justify-between mb-2">
       <span class="font-semibold text-sm" style="color:var(--text)">${p.title||'Untitled'}</span>
-      ${isMember ? '<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">⭐ Ahli</span>' : ''}
+      ${isMember ? '<span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#dcfce7;color:#15803d">✅ Ahli</span>' : ''}
     </div>
     ${rows}
   </div>`;
@@ -1125,9 +1189,9 @@ function renderNotes() {
         </div>
         <h3 class="font-bold text-sm mb-1" style="color:var(--text)">${n.title||''}</h3>
         ${n.description ? `<p class="text-xs mb-3" style="color:var(--muted)">${n.description}</p>` : '<div class="mb-3"></div>'}
-        <button onclick="openNoteItem('${n.id}','${(n.title||'').replace(/'/g,"\\'")}','${n.access||"free"}','${n.url||''}')"
+        <button onclick="openNoteItem('${n.id}','${(n.title||'').replace(/'/g,"\\'")}','${n.access||"free"}','${n.url||''}','${n.subject||''}','${n.qaId||''}')"
           class="mt-auto ${isFree ? 'btn-primary' : 'btn-amber'} text-xs font-bold px-3 py-1.5 rounded-lg transition-colors w-full">
-          ${isFree ? '▶ Baca Sekarang' : '🔒 Buka (Ahli)'}
+          ${n.qaId ? '📝 Baca Q&A' : isFree ? '▶ Baca Sekarang' : '🔒 Buka (Ahli)'}
         </button>
       </div>
     </div>`;
@@ -1136,18 +1200,19 @@ function renderNotes() {
 
 function setNotesSubject(s) { _notesSubject = s; renderNotes(); }
 
-function openNoteItem(id, title, access, url) {
+function openNoteItem(id, title, access, url, subject, qaId) {
   closeNotesGate();
   if (access === 'members' && !currentUser) {
     document.getElementById('notes-gate-login').classList.remove('hidden');
     return;
   }
-  if (access === 'members' && !userPremium) {
-    document.getElementById('notes-gate-member').classList.remove('hidden');
+  if (access === 'members' && !userSubjects.includes(subject)) {
+    showUnlockModal(subject);
     return;
   }
+  // Q&A viewer
+  if (qaId) { openQAViewer(id, title, qaId); return; }
   if (!url) { alert('URL kandungan tidak tersedia.'); return; }
-  // Open viewer
   const driveId = url.match(/[-\w]{25,}/)?.[0];
   const src = driveId ? `https://drive.google.com/file/d/${driveId}/preview` : url;
   document.getElementById('notes-grid').classList.add('hidden');
@@ -1156,6 +1221,53 @@ function openNoteItem(id, title, access, url) {
   document.getElementById('notes-iframe').src = src;
   document.getElementById('notes-viewer-wrap').scrollIntoView({behavior:'smooth',block:'start'});
 }
+
+function showUnlockModal(subject) {
+  if (!currentUser) { window._login(); return; }
+  document.getElementById('unlock-subject-name').textContent = subject;
+  const msg = encodeURIComponent(`Hai! Saya nak buka akses ${subject} di Allite.\nEmail: ${currentUser.email}\nNama: ${currentUser.displayName||''}`);
+  document.getElementById('unlock-wa-btn').href = `https://wa.me/601154646388?text=${msg}`;
+  document.getElementById('modal-unlock').classList.remove('hidden');
+}
+
+async function openQAViewer(contentId, title, qaId) {
+  const modal = document.getElementById('qa-modal');
+  document.getElementById('qa-modal-title').textContent = title;
+  document.getElementById('qa-modal-body').innerHTML = '<div class="text-center py-8 text-sm" style="color:var(--muted)">Memuatkan...</div>';
+  modal.classList.remove('hidden');
+  let attempts = 0;
+  while (!window._loadQA && attempts++ < 20) await new Promise(r => setTimeout(r,100));
+  const qa = await window._loadQA(qaId);
+  if (!qa || !qa.questions?.length) {
+    document.getElementById('qa-modal-body').innerHTML = '<div class="text-center py-8 text-sm" style="color:var(--muted)">Tiada soalan tersedia.</div>';
+    return;
+  }
+  document.getElementById('qa-modal-body').innerHTML = qa.questions.map((q,i) => `
+    <div class="border border-green-100 rounded-xl p-4 mb-4">
+      <div class="flex items-start gap-2 mb-3">
+        <span class="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--sage);color:var(--green)">${q.marks||''}m</span>
+        <div class="font-semibold text-sm" style="color:var(--text)">${i+1}. ${escHtmlQ(q.q||'')}</div>
+      </div>
+      ${q.qImg ? `<img src="${q.qImg}" class="max-w-full rounded-lg mb-3 border border-green-100">` : ''}
+      <div class="bg-green-50 rounded-lg p-3">
+        <div class="text-xs font-bold mb-2" style="color:var(--green)">✏️ Jawapan Model</div>
+        <div class="text-sm leading-relaxed" style="color:var(--text)">${highlightKeywords(q.answer||'', q.keywords||[])}</div>
+      </div>
+    </div>`).join('');
+}
+
+function highlightKeywords(text, keywords) {
+  if (!keywords?.length) return escHtmlQ(text);
+  let result = escHtmlQ(text);
+  keywords.forEach(kw => {
+    if (!kw.trim()) return;
+    const escaped = kw.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    result = result.replace(new RegExp(escaped,'gi'),
+      `<mark style="background:#FEF3C7;color:#92400E;padding:0 2px;border-radius:3px;font-weight:600">$&</mark>`);
+  });
+  return result;
+}
+function escHtmlQ(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function closeNotesViewer() {
   document.getElementById('notes-viewer-wrap').classList.add('hidden');
