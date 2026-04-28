@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>StudyNest SPM — Papers, Books & Careers</title>
+  <title>Allite — SPM Papers, Quiz & AI Tutor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -112,6 +112,12 @@
     /* Year pills */
     .yr-on  { background:var(--green); color:#fff; }
     .yr-off { background:#EEF2EE; color:var(--muted); }
+
+    /* Hide scrollbar on filter rows */
+    .scroll-row { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:4px; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
+    .scroll-row::-webkit-scrollbar { display:none; }
+    .scroll-row { scrollbar-width:none; }
+    .scroll-row > * { flex-shrink:0; }
     .yr-off:hover { background:var(--sage); }
 
     /* Buttons */
@@ -154,7 +160,7 @@
     <!-- Logo -->
     <button onclick="nav('home')" class="flex items-center gap-2 shrink-0">
       <img src="logo.png" class="w-8 h-8 rounded-xl object-cover"/>
-      <span class="font-bold text-base" style="color:var(--text)">StudyNest</span>
+      <span class="font-bold text-base" style="color:var(--text)">A<sup style="font-size:.65em;vertical-align:super;color:var(--green)">+</sup>llite</span>
     </button>
 
     <!-- Nav (desktop) -->
@@ -203,16 +209,15 @@
 
   <!-- Hero -->
   <section style="background:linear-gradient(135deg,#E8F5EC 0%,#F7FAF7 50%,#FEF9F3 100%)"
-    class="py-20 px-4">
+    class="py-10 sm:py-20 px-4">
     <div class="max-w-4xl mx-auto text-center">
-      <div class="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-5"
-        style="background:var(--sage);color:var(--green)">SPM Trial Papers · Malaysia</div>
-      <h1 class="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight serif" style="color:var(--text)">
+      <div class="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3 sm:mb-5"
+        style="background:var(--sage);color:var(--green)">SPM · Malaysia</div>
+      <h1 class="text-3xl sm:text-5xl font-extrabold mb-3 leading-tight serif" style="color:var(--text)">
         Your quiet corner<br/>for SPM prep
       </h1>
-      <p style="color:var(--muted)" class="text-lg mb-8 max-w-xl mx-auto">
-        Free trial papers from every state, notes &amp; study guides,<br class="hidden sm:block"/>
-        physical books, and an AI tutor — all in one place.
+      <p style="color:var(--muted)" class="text-base sm:text-lg mb-5 max-w-xl mx-auto">
+        Trial papers, notes, AI tutor 3 bahasa — semua dalam satu tempat.
       </p>
       <div class="flex flex-wrap gap-3 justify-center">
         <button onclick="nav('papers')"
@@ -587,8 +592,7 @@
     </p>
 
     <!-- Year filter -->
-    <div class="flex flex-wrap gap-2 mb-4">
-      <span class="text-xs font-semibold self-center" style="color:var(--muted)">Tahun:</span>
+    <div class="scroll-row mb-3">
       <button onclick="setCollYear('all')" id="cy-all" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Semua</button>
       <button onclick="setCollYear(2024)"  id="cy-2024" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2024</button>
       <button onclick="setCollYear(2023)"  id="cy-2023" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2023</button>
@@ -597,7 +601,7 @@
     </div>
 
     <!-- Subject filter -->
-    <div id="coll-subj-filter" class="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-1"></div>
+    <div id="coll-subj-filter" class="scroll-row mb-5"></div>
 
     <!-- Grid -->
     <div id="coll-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 fade"></div>

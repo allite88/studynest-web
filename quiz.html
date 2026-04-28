@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quiz – StudyNest</title>
+<title>Quiz – Allite</title>
 <script src="https://cdn.tailwindcss.com"></script>
 
 <!-- Firebase — load quiz from Firestore -->
@@ -72,6 +72,21 @@
   .quick-btn { transition: all .15s; }
   .quick-btn:hover { background: #e0e7ff; color: #4338ca; }
   #chat-panel { transition: transform .3s; }
+  /* Mobile: chat as full-screen overlay */
+  @media (max-width: 767px) {
+    #chat-panel {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      z-index: 50;
+      transform: translateY(100%);
+      border-left: none !important;
+    }
+    #chat-panel.mobile-open {
+      transform: translateY(0);
+      display: flex !important;
+    }
+  }
   .typing-dot { animation: blink 1.2s infinite; }
   .typing-dot:nth-child(2) { animation-delay: .4s; }
   .typing-dot:nth-child(3) { animation-delay: .8s; }
@@ -533,8 +548,15 @@ function clearErrors() {
 function toggleChat() {
   chatOpen = !chatOpen;
   const panel = document.getElementById('chat-panel');
-  panel.classList.toggle('hidden', !chatOpen);
-  panel.classList.toggle('flex', chatOpen);
+  const isMobile = window.innerWidth < 768;
+  if (isMobile) {
+    panel.classList.toggle('mobile-open', chatOpen);
+    if (chatOpen) panel.style.display = 'flex';
+    else setTimeout(() => { if (!chatOpen) panel.style.display = 'none'; }, 300);
+  } else {
+    panel.classList.toggle('hidden', !chatOpen);
+    panel.classList.toggle('flex', chatOpen);
+  }
   const btn = document.getElementById('gemini-toggle');
   btn.className = chatOpen
     ? 'shrink-0 flex items-center gap-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition'
