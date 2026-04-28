@@ -44,6 +44,20 @@
   window._trackAIUsage = async (uid, date, count) => {
     try { await updateDoc(doc(db,'users',uid), {[`aiUsage.${date}`]: count}); } catch(e) {}
   };
+  window._setUserField = async (uid, field, value) => {
+    try { await updateDoc(doc(db,'users',uid), { [field]: value }); } catch(e) {}
+  };
+  window._updateStreak = async (uid) => {
+    try {
+      const snap = await getDoc(doc(db,'users',uid));
+      const data = snap.data() || {};
+      const TODAY = new Date().toISOString().slice(0,10);
+      const YESTERDAY = new Date(Date.now()-864e5).toISOString().slice(0,10);
+      if (data.lastStudyDate === TODAY) return;
+      const newStreak = data.lastStudyDate === YESTERDAY ? (data.streak||0)+1 : 1;
+      await updateDoc(doc(db,'users',uid), { streak: newStreak, lastStudyDate: TODAY });
+    } catch(e) {}
+  };
 </script>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; }
@@ -155,7 +169,8 @@
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
           <div class="text-5xl mb-3" id="result-emoji">🎉</div>
           <div class="text-2xl font-bold text-slate-800 mb-1" id="result-score"></div>
-          <div class="text-slate-500 mb-6" id="result-sub"></div>
+          <div class="text-slate-500 mb-2" id="result-sub"></div>
+          <div id="streak-display" class="hidden text-sm font-semibold text-orange-500 mb-4"></div>
           <div class="grid grid-cols-3 gap-3 mb-6">
             <div class="bg-green-50 rounded-xl p-3"><div class="text-2xl font-bold text-green-600" id="res-correct">0</div><div class="text-xs text-green-500 mt-0.5">Betul</div></div>
             <div class="bg-red-50 rounded-xl p-3"><div class="text-2xl font-bold text-red-500" id="res-wrong">0</div><div class="text-xs text-red-400 mt-0.5">Salah</div></div>
@@ -190,6 +205,17 @@
       <button onclick="setLang('en')" id="lang-en" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">EN</button>
       <button onclick="setLang('zh')" id="lang-zh" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">中文</button>
     </div>
+    <!-- Member own key (hidden until confirmed member) -->
+    <div id="member-key-section" class="hidden px-3 py-2 border-b border-slate-100 bg-amber-50">
+      <div class="text-xs font-semibold text-amber-700 mb-1.5">🔑 Key anda — tanya tanpa had</div>
+      <div class="flex gap-1.5">
+        <input id="member-key-input" type="password" placeholder="Masukkan Gemini API key anda"
+          class="flex-1 border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-amber-400 bg-white">
+        <button onclick="saveMemberKey()" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shrink-0">Simpan</button>
+      </div>
+      <div class="text-xs text-amber-500 mt-1">Key percuma di aistudio.google.com/apikey</div>
+    </div>
+
     <!-- Quick actions -->
     <div class="p-3 border-b border-slate-100 flex flex-wrap gap-1.5">
       <button onclick="quickAsk('Terangkan soalan ini dan sebab jawapan betul dengan lebih mendalam.')" class="quick-btn text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">✨ Terangkan</button>
@@ -219,7 +245,7 @@
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
         <button onclick="sendChat()" class="self-end bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-3 py-2 text-sm font-semibold transition shrink-0">→</button>
       </div>
-      <div class="text-xs text-slate-300 mt-1.5 text-center">Powered by Gemini 2.5 Flash</div>
+      <div class="text-xs text-slate-300 mt-1.5 text-center" id="ai-usage-label">Powered by Gemini AI</div>
     </div>
   </div>
 </div>
@@ -241,6 +267,8 @@
 
 <script>
 let GEMINI_KEY = '';
+let MEMBER_GEMINI_KEY = '';
+let IS_MEMBER = false;
 let currentLang = 'ms';
 
 const SYSTEM_PROMPTS = {
@@ -259,8 +287,23 @@ async function initGemini() {
   while (!window._getConfig && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
   try {
     const config = await window._getConfig();
-    GEMINI_KEY = config.geminiKey || localStorage.getItem('allite_gkey') || '';
-  } catch(e) { GEMINI_KEY = localStorage.getItem('allite_gkey') || ''; }
+    GEMINI_KEY = config.geminiKey || '';
+  } catch(e) {}
+  const uid = window._getUid ? window._getUid() : null;
+  if (uid && window._getUserDoc) {
+    try {
+      const userData = await window._getUserDoc(uid);
+      IS_MEMBER = (userData?.subjects?.length || 0) > 0;
+      MEMBER_GEMINI_KEY = userData?.geminiKey || '';
+      if (IS_MEMBER) {
+        document.getElementById('member-key-section')?.classList.remove('hidden');
+        if (MEMBER_GEMINI_KEY) {
+          const inp = document.getElementById('member-key-input');
+          if (inp) inp.placeholder = 'Key disimpan ✓ (isi semula untuk tukar)';
+        }
+      }
+    } catch(e) {}
+  }
 }
 
 // ── LOAD ──────────────────────────────────────────────────────────
@@ -385,6 +428,9 @@ function selectAnswer(choice) {
   }
   ok ? correct++ : wrong++;
 
+  const _uid = window._getUid ? window._getUid() : null;
+  if (_uid && window._updateStreak) window._updateStreak(_uid);
+
   const fb = document.getElementById('feedback');
   fb.className = `mb-4 p-4 rounded-xl text-sm font-medium ${ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
   fb.textContent = ok ? '✅ Betul! Tahniah.' : `❌ Salah. Jawapan betul: ${q.answer}`;
@@ -432,6 +478,14 @@ function showResults() {
   document.getElementById('res-correct').textContent = correct;
   document.getElementById('res-wrong').textContent = wrong;
   document.getElementById('res-skip').textContent = total-correct-wrong;
+  const _suid = window._getUid ? window._getUid() : null;
+  if (_suid && window._getUserDoc) {
+    window._getUserDoc(_suid).then(ud => {
+      const s = ud?.streak || 0;
+      const el = document.getElementById('streak-display');
+      if (s >= 2) { el.textContent = `🔥 ${s} hari berturut-turut!`; el.classList.remove('hidden'); }
+    }).catch(()=>{});
+  }
 }
 
 function restartQuiz() {
@@ -515,19 +569,24 @@ async function sendToGemini(userMsg, displayMsg) {
   if (!chatOpen) toggleChat();
   addBubble(displayMsg, 'user');
 
-  // Daily AI limit check
   const uid = window._getUid ? window._getUid() : null;
   const TODAY = new Date().toISOString().slice(0,10);
+  let useKey = MEMBER_GEMINI_KEY;
+  let trackUsage = false;
   let aiUsageToday = 0;
-  if (uid && window._getUserDoc) {
-    const userData = await window._getUserDoc(uid);
-    aiUsageToday = userData?.aiUsage?.[TODAY] || 0;
-    const hasPaid = (userData?.subjects?.length || 0) > 0;
-    const limit = hasPaid ? 20 : 5;
-    if (aiUsageToday >= limit) {
-      addBubble(`Had harian ${limit} soalan AI telah dicapai hari ini. ${hasPaid ? 'Cuba lagi esok.' : 'Naik taraf subjek untuk had 20 soalan/hari.'}`, 'ai');
-      return;
+
+  if (!useKey) {
+    if (uid && window._getUserDoc) {
+      const userData = await window._getUserDoc(uid);
+      aiUsageToday = userData?.aiUsage?.[TODAY] || 0;
+      if (aiUsageToday >= 3) {
+        const hint = IS_MEMBER ? ' Tambah Gemini Key anda dalam tetingkap AI untuk tanya tanpa had.' : '';
+        addBubble(`Had harian 3 soalan AI telah dicapai hari ini.${hint}`, 'ai');
+        return;
+      }
     }
+    useKey = GEMINI_KEY;
+    trackUsage = true;
   }
 
   const ctx = getCurrentCtx();
@@ -536,9 +595,9 @@ async function sendToGemini(userMsg, displayMsg) {
 
   const tid = addTyping();
   try {
-    if (!GEMINI_KEY) { replaceBubble(tid, 'AI tutor tidak tersedia. Hubungi admin.'); return; }
+    if (!useKey) { replaceBubble(tid, 'AI tutor tidak tersedia. Hubungi admin.'); return; }
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${useKey}`,
       {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -553,10 +612,21 @@ async function sendToGemini(userMsg, displayMsg) {
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Maaf, cuba lagi.';
     chatHistory.push({role:'model', parts:[{text:reply}]});
     replaceBubble(tid, reply);
-    if (uid && window._trackAIUsage) window._trackAIUsage(uid, TODAY, aiUsageToday + 1);
+    if (trackUsage && uid && window._trackAIUsage) window._trackAIUsage(uid, TODAY, aiUsageToday + 1);
   } catch(e) {
     replaceBubble(tid, 'Ralat sambungan. Cuba lagi.');
   }
+}
+
+async function saveMemberKey() {
+  const key = document.getElementById('member-key-input').value.trim();
+  if (!key) return;
+  const uid = window._getUid ? window._getUid() : null;
+  if (!uid) { alert('Sila log masuk dahulu.'); return; }
+  if (window._setUserField) await window._setUserField(uid, 'geminiKey', key);
+  MEMBER_GEMINI_KEY = key;
+  document.getElementById('member-key-input').value = '';
+  document.getElementById('member-key-input').placeholder = 'Key disimpan ✓ (isi semula untuk tukar)';
 }
 
 function addBubble(text, role) {
