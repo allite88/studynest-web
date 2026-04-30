@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiz – Allite</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 
 <!-- Firebase — load quiz from Firestore -->
@@ -11,6 +12,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc, updateDoc }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
     authDomain: "allite-platform.firebaseapp.com",
@@ -19,8 +22,12 @@
     messagingSenderId: "989451608043",
     appId: "1:989451608043:web:c33de8fdcc3383dbc6c3ae"
   };
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
+  const app  = initializeApp(firebaseConfig);
+  const db   = getFirestore(app);
+  const auth = getAuth(app);
+  window._getUid = () => auth.currentUser?.uid || null;
+  window._authReady = new Promise(resolve => onAuthStateChanged(auth, resolve));
+  window._signInGoogle = () => signInWithPopup(auth, new GoogleAuthProvider());
   window._getQuizDoc = async (id) => {
     const snap = await getDoc(doc(db,'quizzes',id));
     return snap.exists() ? {id:snap.id,...snap.data()} : null;
@@ -60,7 +67,7 @@
   };
 </script>
 <style>
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #F7FAF7; }
   .opt-btn { transition: all .18s; border: 2px solid #e2e8f0; }
   .opt-btn:hover:not(:disabled) { border-color: #6366f1; background: #eef2ff; }
   .opt-btn.correct { border-color: #22c55e !important; background: #dcfce7 !important; color: #15803d; }
@@ -102,12 +109,12 @@
     <div class="text-sm font-semibold text-slate-700 truncate" id="quiz-title">Memuatkan...</div>
     <div class="text-xs text-slate-400" id="quiz-sub"></div>
   </div>
-  <div class="text-sm font-bold text-indigo-600 shrink-0" id="score-display"></div>
+  <div class="text-sm font-bold text-emerald-700 shrink-0" id="score-display"></div>
   <button onclick="showErrorBook()" class="shrink-0 flex items-center gap-1 text-slate-500 hover:text-red-500 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs transition">
     📕 <span id="err-count">0</span>
   </button>
   <button onclick="toggleChat()" id="gemini-toggle"
-    class="shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+    class="shrink-0 flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
     Gemini
   </button>
@@ -115,7 +122,7 @@
 
 <!-- PROGRESS BAR -->
 <div class="h-1.5 bg-slate-100">
-  <div class="h-full bg-indigo-500 progress-bar" id="progress-bar" style="width:0%"></div>
+  <div class="h-full bg-emerald-500 progress-bar" id="progress-bar" style="width:0%"></div>
 </div>
 
 <!-- MAIN LAYOUT -->
@@ -128,7 +135,7 @@
       <!-- QUESTION CARD -->
       <div id="q-card" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full" id="q-num">S1/40</span>
+          <span class="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full" id="q-num">S1/40</span>
           <span id="img-badge" class="hidden text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">📄 Ada gambar/jadual</span>
         </div>
         <!-- Question text -->
@@ -158,11 +165,14 @@
       <!-- FEEDBACK + NEXT -->
       <div id="feedback" class="hidden mb-4 p-4 rounded-xl text-sm font-medium"></div>
 
-      <!-- AUTO EXPLANATION (shows on wrong answer) -->
+      <!-- AUTO EXPLANATION (shows after every answer) -->
       <div id="explanation-box" class="hidden mb-4 space-y-2">
-        <div id="exp-wrap" class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed">
-          <div class="font-semibold text-indigo-700 text-xs mb-1.5 uppercase tracking-wide">📖 Kenapa jawapan ini betul?</div>
-          <div id="exp-text"></div>
+        <div id="exp-wrap" class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold text-emerald-700 text-xs uppercase tracking-wide">📖 Kenapa jawapan ini betul?</div>
+            <div class="flex gap-1" id="exp-lang-tabs"></div>
+          </div>
+          <div id="exp-text" class="leading-relaxed"></div>
         </div>
         <div id="trick-wrap" class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-slate-700">
           <div class="font-semibold text-amber-700 text-xs mb-1.5 uppercase tracking-wide">💡 Cara ingat</div>
@@ -171,7 +181,7 @@
       </div>
 
       <div class="flex gap-3 items-center flex-wrap" id="nav-row">
-        <button id="next-btn" onclick="nextQuestion()" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition">
+        <button id="next-btn" onclick="nextQuestion()" class="hidden bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-6 py-2.5 rounded-xl transition">
           Seterusnya →
         </button>
         <button id="ai-explain-btn" onclick="askAiExplain()" class="hidden items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition">
@@ -192,7 +202,7 @@
             <div class="bg-slate-50 rounded-xl p-3"><div class="text-2xl font-bold text-slate-500" id="res-skip">0</div><div class="text-xs text-slate-400 mt-0.5">Langkau</div></div>
           </div>
           <div class="flex gap-3 justify-center flex-wrap">
-            <button onclick="restartQuiz()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition">Cuba Lagi</button>
+            <button onclick="restartQuiz()" class="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-5 py-2.5 rounded-xl transition">Cuba Lagi</button>
             <button onclick="showErrorBook()" class="bg-white border-2 border-slate-200 hover:border-red-300 text-slate-700 font-semibold px-5 py-2.5 rounded-xl transition">📕 Buku Ralat</button>
           </div>
         </div>
@@ -204,7 +214,7 @@
   <div id="chat-panel" class="hidden flex-col bg-white border-l border-slate-200 shrink-0" style="width:340px">
     <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">G</div>
+        <div class="w-7 h-7 rounded-full bg-emerald-700 flex items-center justify-center text-white text-xs font-bold">G</div>
         <div>
           <div class="font-semibold text-slate-800 text-sm">Gemini AI Tutor</div>
           <div class="text-xs text-slate-400">Tanya apa sahaja 🌟</div>
@@ -216,7 +226,7 @@
     <!-- Language switcher -->
     <div class="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
       <span class="text-xs text-slate-400">Bahasa:</span>
-      <button onclick="setLang('ms')" id="lang-ms" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold transition">BM</button>
+      <button onclick="setLang('ms')" id="lang-ms" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold transition">BM</button>
       <button onclick="setLang('en')" id="lang-en" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">EN</button>
       <button onclick="setLang('zh')" id="lang-zh" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition">中文</button>
     </div>
@@ -258,7 +268,7 @@
           class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400 resize-none"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
-        <button onclick="sendChat()" class="self-end bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-3 py-2 text-sm font-semibold transition shrink-0">→</button>
+        <button onclick="sendChat()" class="self-end bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl px-3 py-2 text-sm font-semibold transition shrink-0">→</button>
       </div>
       <div class="text-xs text-slate-300 mt-1.5 text-center" id="ai-usage-label">Powered by Gemini AI</div>
     </div>
@@ -332,12 +342,13 @@ async function loadQuiz() {
     return;
   }
 
-  // Wait for Firebase module to be ready
+  // Wait for Firebase module + auth state
   let attempts = 0;
   while (!window._getQuizDoc && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  if (window._authReady) await window._authReady;
 
   let quizData = null;
-  try { quizData = await window._getQuizDoc(quizId); } catch(e) {}
+  try { quizData = await window._getQuizDoc(quizId); } catch(e) { console.error('loadQuiz error:', e); }
 
   if (!quizData) {
     document.getElementById('quiz-title').textContent = 'Quiz tidak dijumpai';
@@ -377,7 +388,7 @@ function showAccessGate() {
       <div class="text-4xl mb-3">🔒</div>
       <div class="font-bold text-slate-700 mb-2">Quiz ini untuk ahli sahaja</div>
       <div class="text-sm text-slate-400 mb-5">Log masuk untuk akses quiz ini</div>
-      <a href="index.html" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition inline-block">← Kembali</a>
+      <a href="index.html" class="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-6 py-2.5 rounded-xl transition inline-block">← Kembali</a>
     </div>`;
   document.getElementById('options-grid').classList.add('hidden');
   document.getElementById('nav-row').classList.add('hidden');
@@ -417,7 +428,7 @@ function showQuestion(idx) {
 
   document.getElementById('feedback').className = 'hidden mb-4 p-4 rounded-xl text-sm font-medium';
   document.getElementById('explanation-box').classList.add('hidden');
-  document.getElementById('next-btn').className = 'hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition';
+  document.getElementById('next-btn').className = 'hidden bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-6 py-2.5 rounded-xl transition';
   document.getElementById('ai-explain-btn').className = 'hidden items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition';
 
   document.getElementById('progress-bar').style.width = (idx/questions.length*100)+'%';
@@ -439,8 +450,8 @@ function selectAnswer(choice) {
     document.getElementById('opt-'+q.answer).classList.add('reveal');
     saveError(q, choice);
     document.getElementById('ai-explain-btn').className = 'flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition';
-    showExplanation(q);
   }
+  showExplanation(q);
   ok ? correct++ : wrong++;
 
   const _uid = window._getUid ? window._getUid() : null;
@@ -457,15 +468,47 @@ function selectAnswer(choice) {
 function nextQuestion() { current++; showQuestion(current); }
 
 function showExplanation(q) {
-  if (!q.explanation && !q.memoryTrick) return;
-  const box = document.getElementById('explanation-box');
-  const expWrap = document.getElementById('exp-wrap');
-  const trickWrap = document.getElementById('trick-wrap');
+  if (!q.explanation && !q.explanationCN && !q.explanationEN && !q.memoryTrick) return;
+  const box      = document.getElementById('explanation-box');
+  const expWrap  = document.getElementById('exp-wrap');
+  const trickWrap= document.getElementById('trick-wrap');
   box.classList.remove('hidden');
-  if (q.explanation) { expWrap.classList.remove('hidden'); document.getElementById('exp-text').textContent = q.explanation; }
-  else expWrap.classList.add('hidden');
+
+  const expMap = { ms: q.explanation||'', zh: q.explanationCN||'', en: q.explanationEN||'' };
+  const hasExp = Object.values(expMap).some(v => v);
+
+  if (hasExp) {
+    expWrap.classList.remove('hidden');
+    // build language tabs for available languages only
+    const labels = { ms:'BM', zh:'中文', en:'EN' };
+    const available = ['ms','zh','en'].filter(l => expMap[l]);
+    const tabsEl = document.getElementById('exp-lang-tabs');
+    tabsEl.innerHTML = available.length > 1
+      ? available.map(l => `<button onclick="switchExpLang('${l}')" id="exp-tab-${l}"
+          class="text-xs px-2 py-0.5 rounded-full transition font-semibold">${labels[l]}</button>`).join('')
+      : '';
+    // pick best lang: current UI lang, else first available
+    const bestLang = expMap[currentLang] ? currentLang : available[0];
+    switchExpLang(bestLang, expMap);
+  } else {
+    expWrap.classList.add('hidden');
+  }
+
   if (q.memoryTrick) { trickWrap.classList.remove('hidden'); document.getElementById('trick-text').textContent = q.memoryTrick; }
   else trickWrap.classList.add('hidden');
+}
+
+let _currentExpMap = {};
+function switchExpLang(lang, map) {
+  if (map) _currentExpMap = map;
+  document.getElementById('exp-text').textContent = _currentExpMap[lang] || '';
+  ['ms','zh','en'].forEach(l => {
+    const btn = document.getElementById('exp-tab-'+l);
+    if (!btn) return;
+    btn.className = l === lang
+      ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-700 text-white font-semibold transition'
+      : 'text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold transition';
+  });
 }
 
 function setLang(lang) {
@@ -473,7 +516,7 @@ function setLang(lang) {
   ['ms','en','zh'].forEach(l => {
     const btn = document.getElementById('lang-'+l);
     btn.className = l === lang
-      ? 'text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold transition'
+      ? 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold transition'
       : 'text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 transition';
   });
 }
@@ -560,15 +603,17 @@ function toggleChat() {
   const btn = document.getElementById('gemini-toggle');
   btn.className = chatOpen
     ? 'shrink-0 flex items-center gap-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition'
-    : 'shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition';
+    : 'shrink-0 flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition';
 }
 
 function getCurrentCtx() {
   if (current >= questions.length) return null;
   const q = questions[current];
   let ctx = `Soalan ${q.no}: ${q.q}\nA: ${q.a}\nB: ${q.b}\nC: ${q.c}\nD: ${q.d}\nJawapan betul: ${q.answer}`;
-  if (q.explanation) ctx += `\n[Penjelasan]: ${q.explanation}`;
-  if (q.memoryTrick) ctx += `\n[Cara ingat]: ${q.memoryTrick}`;
+  if (q.explanation)   ctx += `\n[Penjelasan BM]: ${q.explanation}`;
+  if (q.explanationEN) ctx += `\n[Explanation EN]: ${q.explanationEN}`;
+  if (q.explanationCN) ctx += `\n[解释中文]: ${q.explanationCN}`;
+  if (q.memoryTrick)   ctx += `\n[Cara ingat]: ${q.memoryTrick}`;
   return ctx;
 }
 

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K2 Marking Scheme Editor - Allite Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { --tw-ring-offset-shadow: none; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f8fafc; }
+    .field { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; font-size: 13px; outline: none; transition: border .15s; font-family: inherit; }
+    .field:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1); }
+    .btn-primary { background: #6366f1; color: white; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; border: none; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-secondary { background: #f1f5f9; color: #475569; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; border: none; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-danger { background: #fee2e2; color: #991b1b; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; border: none; }
+    .btn-danger:hover { background: #fecaca; }
+    .tab-btn { padding: 8px 12px; border-bottom: 2px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .tab-btn.active { border-bottom-color: #6366f1; color: #6366f1; }
+    .tab-btn.inactive { color: #94a3b8; }
+    .block-item { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: white; margin-bottom: 8px; transition: all .2s; }
+    .block-item.selected { border-color: #6366f1; background: #eef2ff; }
+    .block-header { display: flex; align-items: center; gap: 8px; padding: 10px; background: #f1f5f9; border-radius: 6px; cursor: pointer; user-select: none; }
+    .block-header:hover { background: #e2e8f0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-amber { background: #fef3c7; color: #b45309; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .fade-in { animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .collapsible-content { max-height: 2000px; overflow: hidden; transition: max-height 0.3s; }
+    .collapsible-content.hidden { max-height: 0; }
+    .marking-rule { padding: 10px; background: #fef3c7; border-left: 3px solid #b45309; border-radius: 6px; margin-top: 8px; }
+    .preview-box { background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; max-height: 400px; overflow-y: auto; }
+    .language-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 4px; }
+    .language-badge.bm { background: #ccfbf1; color: #0d9488; }
+    .language-badge.en { background: #dbeafe; color: #1d4ed8; }
+  </style>
+</head>
+<body class="bg-slate-50">
+
+<!-- TOP BAR -->
+<div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">K2</div>
+    <div>
+      <div class="font-bold text-slate-800">K2 Marking Scheme Editor</div>
+      <div class="text-xs text-slate-400">Kompleks Jawapan & Skema Pemeriksaan</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-3">
+    <input type="text" id="gemini-api-key" placeholder="Gemini API Key" class="field w-48" style="padding: 6px 10px; font-size: 12px;">
+    <button onclick="testGeminiKey()" class="btn-secondary">🔑 Test</button>
+    <button onclick="exportSchema()" class="btn-secondary">⬇️ Export</button>
+    <button onclick="saveAllSchema()" class="btn-primary">💾 Save All</button>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="flex h-[calc(100vh-70px)]">
+  <!-- LEFT: Questions List -->
+  <div class="w-80 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-slate-200">
+      <div class="text-xs font-bold text-slate-500 uppercase mb-2">Questions</div>
+      <div class="flex gap-2">
+        <input type="number" id="new-question-no" placeholder="Q#" class="field w-16" style="font-size: 12px;">
+        <button onclick="addQuestion()" class="btn-primary flex-1">+ Add</button>
+      </div>
+    </div>
+    <div id="questions-list" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+  </div>
+
+  <!-- CENTER: Question Editor -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="border-b border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+      <div>
+        <div class="text-sm font-bold text-slate-700" id="q-title">Select a question</div>
+        <div class="text-xs text-slate-400" id="q-info"></div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="togglePreview()" class="btn-secondary" id="preview-btn">👁️ Preview</button>
+        <button onclick="duplicateQuestion()" class="btn-secondary" id="dup-btn" style="display:none;">📋 Dup</button>
+        <button onclick="deleteQuestion()" class="btn-danger" id="del-btn" style="display:none;">🗑️ Del</button>
+      </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden gap-4">
+      <!-- Editor Area -->
+      <div id="editor-area" class="flex-1 overflow-y-auto p-4 space-y-4" style="display: none;">
+        <!-- Question Text -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-bold text-slate-500 uppercase mb-2">Question Text</div>
+          <div class="flex gap-2 mb-2">
+            <label class="text-xs cursor-pointer"><input type="radio" name="lang-q" value="bm" onchange="switchQuestionLang('bm')" checked> BM</label>
+            <label class="text-xs cursor-pointer"><input type="radio" name="lang-q" value="en" onchange="switchQuestionLang('en')"> EN</label>
+          </div>
+          <textarea id="q-text-bm" placeholder="Soalan dalam Bahasa Melayu..." class="field" rows="3"></textarea>
+          <textarea id="q-text-en" placeholder="Question in English..." class="field" rows="3" style="display:none; margin-top: 8px;"></textarea>
+        </div>
+
+        <!-- Total Marks & Marking Scheme -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-bold text-slate-500 uppercase mb-3">Total Marks & Scheme</div>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div>
+              <label class="text-xs text-slate-500">Total Marks</label>
+              <input type="number" id="q-total-marks" value="20" class="field" style="font-size: 12px;">
+            </div>
+            <div>
+              <label class="text-xs text-slate-500">Passing Mark</label>
+              <input type="number" id="q-passing-mark" value="10" class="field" style="font-size: 12px;">
+            </div>
+            <div>
+              <label class="text-xs text-slate-500">Kertas</label>
+              <select id="q-paper" class="field" style="font-size: 12px;"><option>K2</option><option>K1&2</option></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blocks Editor -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center justify-between">
+            <span>Answer Blocks (Blok Jawapan)</span>
+            <button onclick="addBlock()" class="btn-primary text-xs px-2 py-1">+ Block</button>
+          </div>
+          <div id="blocks-list" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- Preview Area -->
+      <div id="preview-area" class="hidden flex-1 overflow-y-auto p-4">
+        <div class="bg-white rounded-xl border border-slate-200 p-6">
+          <div class="text-sm font-bold text-slate-700 mb-4">Preview</div>
+          <div id="preview-content" class="space-y-4 text-sm"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="flex-1 flex items-center justify-center text-center">
+        <div class="text-slate-400">
+          <div class="text-4xl mb-2">📝</div>
+          <div class="text-sm font-medium">Select a question to edit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Gemini Import -->
+<div id="gemini-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl max-w-2xl w-full max-h-96 flex flex-col">
+    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+      <div class="font-bold text-slate-800">🤖 Import from Gemini</div>
+      <button onclick="closeGeminiModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4">
+      <div class="text-xs text-slate-600 mb-3">Paste JSON output from Gemini. It will be merged with existing questions.</div>
+      <textarea id="gemini-json-input" placeholder='[{"questionNo": 1, "questionBM": "...", "totalMarks": 20, "blocks": [...]}]' class="field" rows="12"></textarea>
+      <div id="gemini-error" class="text-xs text-red-600 mt-2 hidden"></div>
+    </div>
+    <div class="p-4 border-t border-slate-200 flex gap-2 justify-end">
+      <button onclick="closeGeminiModal()" class="btn-secondary">Batal</button>
+      <button onclick="importGeminiJSON()" class="btn-primary">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Block Editor -->
+<div id="block-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+      <div class="font-bold text-slate-800" id="block-modal-title">Add Block</div>
+      <button onclick="closeBlockModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Block Type</label>
+        <select id="block-type" class="field" style="font-size: 12px;" onchange="updateBlockTypeUI()">
+          <option value="answer-section">Answer Section (Main)</option>
+          <option value="alternative">Alternative Answer</option>
+          <option value="common-error">Common Mistake</option>
+          <option value="marking-guide">Marking Guide</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Language</label>
+        <div class="flex gap-2">
+          <label class="text-xs cursor-pointer"><input type="radio" name="block-lang" value="bm" checked> BM</label>
+          <label class="text-xs cursor-pointer"><input type="radio" name="block-lang" value="en"> EN</label>
+          <label class="text-xs cursor-pointer"><input type="radio" name="block-lang" value="bilingual"> Both</label>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Title (optional)</label>
+        <input type="text" id="block-title" placeholder="e.g. Jawapan Alternatif" class="field" style="font-size: 12px;">
+      </div>
+      <div id="block-content-ui"></div>
+      <div id="block-marking-ui"></div>
+    </div>
+    <div class="p-4 border-t border-slate-200 flex gap-2 justify-end">
+      <button onclick="closeBlockModal()" class="btn-secondary">Batal</button>
+      <button onclick="saveBlock()" class="btn-primary">✅ Save Block</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ADMIN_EMAIL = 'sgece88@gmail.com';
+
+let currentUser = null;
+let allQuestions = [];
+let selectedQuestionIndex = null;
+let selectedBlockIndex = null;
+let isPreviewMode = false;
+let editingBlockIndex = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', async () => {
+  // TODO: Add Firebase Auth
+  loadQuestionsFromStorage();
+  renderQuestionsList();
+});
+
+// ── STORAGE ──────────────────────────────────────────────────────
+function saveQuestionsToStorage() {
+  localStorage.setItem('k2-marking-scheme', JSON.stringify(allQuestions));
+}
+
+function loadQuestionsFromStorage() {
+  try {
+    const saved = localStorage.getItem('k2-marking-scheme');
+    allQuestions = saved ? JSON.parse(saved) : [];
+  } catch(e) {
+    console.error('Error loading from storage:', e);
+    allQuestions = [];
+  }
+}
+
+// ── QUESTIONS ────────────────────────────────────────────────────
+window.addQuestion = () => {
+  const no = parseInt(document.getElementById('new-question-no').value) || allQuestions.length + 1;
+  const q = {
+    id: `q-${Date.now()}`,
+    questionNo: no,
+    questionBM: '',
+    questionEN: '',
+    totalMarks: 20,
+    passingMark: 10,
+    paper: 'K2',
+    blocks: []
+  };
+  allQuestions.push(q);
+  saveQuestionsToStorage();
+  renderQuestionsList();
+  selectQuestion(allQuestions.length - 1);
+  document.getElementById('new-question-no').value = '';
+};
+
+window.selectQuestion = (index) => {
+  selectedQuestionIndex = index;
+  selectedBlockIndex = null;
+  renderQuestionsList();
+  renderEditor();
+};
+
+window.deleteQuestion = () => {
+  if (selectedQuestionIndex === null) return;
+  if (!confirm('Buang soalan ini?')) return;
+  allQuestions.splice(selectedQuestionIndex, 1);
+  saveQuestionsToStorage();
+  selectedQuestionIndex = null;
+  renderQuestionsList();
+  renderEditor();
+};
+
+window.duplicateQuestion = () => {
+  if (selectedQuestionIndex === null) return;
+  const q = allQuestions[selectedQuestionIndex];
+  const copy = JSON.parse(JSON.stringify(q));
+  copy.id = `q-${Date.now()}`;
+  copy.questionNo = Math.max(...allQuestions.map(x=>x.questionNo||0)) + 1;
+  allQuestions.push(copy);
+  saveQuestionsToStorage();
+  renderQuestionsList();
+};
+
+function renderQuestionsList() {
+  const list = document.getElementById('questions-list');
+  if (!allQuestions.length) {
+    list.innerHTML = '<div class="text-xs text-slate-400 text-center py-4">Tiada soalan</div>';
+    return;
+  }
+  list.innerHTML = allQuestions.map((q, i) => `
+    <div class="block-item ${i === selectedQuestionIndex ? 'selected' : ''} cursor-pointer transition" onclick="selectQuestion(${i})">
+      <div class="font-bold text-slate-700">Q${q.questionNo || i+1}</div>
+      <div class="text-xs text-slate-400 truncate">${q.questionBM || '(kosong)'}</div>
+      <div class="text-xs text-slate-500 mt-1">
+        <span class="badge badge-blue">${q.blocks?.length || 0} blocks</span>
+        <span class="badge badge-green">${q.totalMarks || 0} marks</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── EDITOR ───────────────────────────────────────────────────────
+function renderEditor() {
+  const empty = document.getElementById('empty-state');
+  const editor = document.getElementById('editor-area');
+  const delBtn = document.getElementById('del-btn');
+  const dupBtn = document.getElementById('dup-btn');
+
+  if (selectedQuestionIndex === null) {
+    empty.style.display = 'flex';
+    editor.style.display = 'none';
+    delBtn.style.display = 'none';
+    dupBtn.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  editor.style.display = 'block';
+  delBtn.style.display = 'block';
+  dupBtn.style.display = 'block';
+
+  const q = allQuestions[selectedQuestionIndex];
+  document.getElementById('q-title').textContent = `Q${q.questionNo || selectedQuestionIndex + 1}`;
+  document.getElementById('q-info').textContent = `${q.totalMarks} marks · ${q.blocks?.length || 0} blocks`;
+  document.getElementById('q-text-bm').value = q.questionBM || '';
+  document.getElementById('q-text-en').value = q.questionEN || '';
+  document.getElementById('q-total-marks').value = q.totalMarks || 20;
+  document.getElementById('q-passing-mark').value = q.passingMark || 10;
+  document.getElementById('q-paper').value = q.paper || 'K2';
+
+  renderBlocksList();
+}
+
+function renderBlocksList() {
+  const q = allQuestions[selectedQuestionIndex];
+  const list = document.getElementById('blocks-list');
+
+  if (!q.blocks?.length) {
+    list.innerHTML = '<div class="text-xs text-slate-400 italic">Tiada blocks. Klik + Block untuk tambah.</div>';
+    return;
+  }
+
+  list.innerHTML = q.blocks.map((b, i) => `
+    <div class="block-item cursor-pointer hover:bg-slate-50" onclick="editBlock(${i})">
+      <div class="flex items-center gap-2 justify-between">
+        <div class="flex-1">
+          <span class="badge badge-blue text-xs">${b.type.replace('-', ' ')}</span>
+          <span class="badge ${b.language === 'bilingual' ? 'badge-green' : 'badge-amber'} text-xs">${b.language}</span>
+          ${b.title ? `<div class="font-medium text-slate-700 mt-1">${escapeHtml(b.title)}</div>` : ''}
+        </div>
+        <button onclick="event.stopPropagation(); deleteBlock(${i})" class="btn-danger text-xs px-2 py-1">×</button>
+      </div>
+      <div class="text-xs text-slate-500 mt-1">
+        ${b.content?.length || 0} items
+        ${b.markingRule ? ' · Has marking rule' : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── BLOCKS ───────────────────────────────────────────────────────
+window.addBlock = () => {
+  editingBlockIndex = null;
+  document.getElementById('block-modal-title').textContent = 'Add Block';
+  document.getElementById('block-type').value = 'answer-section';
+  document.getElementById('block-title').value = '';
+  document.querySelector('input[name="block-lang"][value="bm"]').checked = true;
+  updateBlockTypeUI();
+  document.getElementById('block-modal').classList.remove('hidden');
+};
+
+window.editBlock = (index) => {
+  editingBlockIndex = index;
+  const q = allQuestions[selectedQuestionIndex];
+  const b = q.blocks[index];
+  document.getElementById('block-modal-title').textContent = `Edit Block ${index + 1}`;
+  document.getElementById('block-type').value = b.type;
+  document.getElementById('block-title').value = b.title || '';
+  document.querySelector(`input[name="block-lang"][value="${b.language || 'bm'}"]`).checked = true;
+  updateBlockTypeUI();
+  loadBlockContentUI(b);
+  document.getElementById('block-modal').classList.remove('hidden');
+};
+
+window.deleteBlock = (index) => {
+  if (!confirm('Buang block ini?')) return;
+  const q = allQuestions[selectedQuestionIndex];
+  q.blocks.splice(index, 1);
+  saveQuestionsToStorage();
+  renderBlocksList();
+};
+
+window.updateBlockTypeUI = () => {
+  const type = document.getElementById('block-type').value;
+  const contentUI = document.getElementById('block-content-ui');
+  const markingUI = document.getElementById('block-marking-ui');
+
+  if (type === 'answer-section') {
+    contentUI.innerHTML = `
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Answer Parts (Bahagian)</label>
+        <div id="answer-parts-editor" class="space-y-2"></div>
+        <button onclick="addAnswerPart()" class="btn-secondary text-xs mt-2 w-full">+ Add Part</button>
+      </div>
+    `;
+    markingUI.innerHTML = `
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Marking Rules (Optional)</label>
+        <div class="marking-rule">
+          <div class="text-xs font-semibold mb-2">📏 Allocation</div>
+          <input type="text" id="marking-desc" placeholder="1 mark × 20 points" class="field text-xs" style="margin-bottom: 8px;">
+          <input type="number" id="marking-total" placeholder="Total marks" class="field text-xs" style="margin-bottom: 8px;">
+        </div>
+      </div>
+    `;
+  } else if (type === 'alternative') {
+    contentUI.innerHTML = `
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Alternative Answer Text</label>
+        <textarea id="alt-content" placeholder="Jawapan alternatif yang boleh diterima..." class="field" rows="6"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Applicable to Parts (Optional)</label>
+        <input type="text" id="alt-applicable" placeholder="e.g. (a), (b)(i)" class="field text-xs">
+      </div>
+    `;
+    markingUI.innerHTML = '';
+  } else if (type === 'common-error') {
+    contentUI.innerHTML = `
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Mistake</label>
+          <textarea id="error-mistake" placeholder="Kesilapan pelajar..." class="field" rows="3"></textarea>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Correction</label>
+          <textarea id="error-correction" placeholder="Jawapan yang betul..." class="field" rows="3"></textarea>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Marks to Deduct</label>
+          <input type="number" id="error-deduct" placeholder="0.5" step="0.5" class="field text-xs">
+        </div>
+      </div>
+    `;
+    markingUI.innerHTML = '';
+  }
+};
+
+function loadBlockContentUI(block) {
+  // TODO: Load existing block data into UI
+}
+
+window.addAnswerPart = () => {
+  const editor = document.getElementById('answer-parts-editor');
+  const partNum = (editor.querySelectorAll('.answer-part').length) + 1;
+  const partHTML = `
+    <div class="answer-part bg-slate-50 p-3 rounded-lg border border-slate-200">
+      <div class="flex gap-2 mb-2">
+        <input type="text" placeholder="e.g. (a)" class="field part-label text-xs flex-1">
+        <input type="number" placeholder="Marks" class="field part-marks text-xs w-16">
+        <button onclick="this.parentElement.parentElement.remove()" class="btn-danger text-xs px-2">×</button>
+      </div>
+      <textarea placeholder="Answer content..." class="field part-content text-xs" rows="3"></textarea>
+      <div class="mt-2 text-xs">
+        <label class="cursor-pointer"><input type="radio" name="rule-${partNum}" value="none" checked> None</label>
+        <label class="cursor-pointer ml-3"><input type="radio" name="rule-${partNum}" value="points"> Points</label>
+        <label class="cursor-pointer ml-3"><input type="radio" name="rule-${partNum}" value="flexible"> Accept Any</label>
+        <label class="cursor-pointer ml-3"><input type="radio" name="rule-${partNum}" value="ecf"> E.C.F</label>
+      </div>
+    </div>
+  `;
+  editor.innerHTML += partHTML;
+};
+
+window.saveBlock = () => {
+  const type = document.getElementById('block-type').value;
+  const lang = document.querySelector('input[name="block-lang"]:checked').value;
+  const title = document.getElementById('block-title').value;
+
+  const block = {
+    type,
+    language: lang,
+    title: title || null,
+    content: [],
+    markingRule: null
+  };
+
+  // TODO: Extract content based on type
+  // For now, just save basic structure
+
+  const q = allQuestions[selectedQuestionIndex];
+  if (editingBlockIndex !== null) {
+    q.blocks[editingBlockIndex] = block;
+  } else {
+    q.blocks.push(block);
+  }
+
+  saveQuestionsToStorage();
+  closeBlockModal();
+  renderBlocksList();
+};
+
+window.closeBlockModal = () => {
+  document.getElementById('block-modal').classList.add('hidden');
+  editingBlockIndex = null;
+};
+
+// ── PREVIEW ──────────────────────────────────────────────────────
+window.togglePreview = () => {
+  isPreviewMode = !isPreviewMode;
+  document.getElementById('editor-area').style.display = isPreviewMode ? 'none' : 'block';
+  document.getElementById('preview-area').style.display = isPreviewMode ? 'block' : 'none';
+  document.getElementById('preview-btn').textContent = isPreviewMode ? '✏️ Edit' : '👁️ Preview';
+  if (isPreviewMode) renderPreview();
+};
+
+function renderPreview() {
+  const q = allQuestions[selectedQuestionIndex];
+  let html = `
+    <h2 class="text-lg font-bold text-slate-800 mb-4">Q${q.questionNo || selectedQuestionIndex + 1}</h2>
+    <div class="mb-6 text-slate-700 leading-relaxed">${escapeHtml(q.questionBM)}</div>
+    <div class="text-sm text-slate-500 mb-6">Total: <strong>${q.totalMarks}</strong> marks</div>
+  `;
+
+  (q.blocks || []).forEach((block, i) => {
+    html += renderBlockPreview(block);
+  });
+
+  document.getElementById('preview-content').innerHTML = html;
+}
+
+function renderBlockPreview(block) {
+  let html = `<div class="border-t pt-4 mt-4">`;
+  if (block.title) html += `<h3 class="font-semibold text-slate-700 mb-2">${escapeHtml(block.title)}</h3>`;
+
+  html += `<span class="badge badge-blue text-xs">${block.type}</span>`;
+
+  // TODO: Render block content
+
+  if (block.markingRule) {
+    html += `<div class="marking-rule mt-3"><div class="text-xs">${escapeHtml(JSON.stringify(block.markingRule))}</div></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ── QUESTION LANGUAGE ────────────────────────────────────────────
+window.switchQuestionLang = (lang) => {
+  document.getElementById('q-text-bm').style.display = lang === 'bm' ? 'block' : 'none';
+  document.getElementById('q-text-en').style.display = lang === 'en' ? 'block' : 'none';
+};
+
+// ── SAVE & EXPORT ────────────────────────────────────────────────
+window.saveAllSchema = async () => {
+  if (selectedQuestionIndex !== null) {
+    const q = allQuestions[selectedQuestionIndex];
+    q.questionBM = document.getElementById('q-text-bm').value;
+    q.questionEN = document.getElementById('q-text-en').value;
+    q.totalMarks = parseInt(document.getElementById('q-total-marks').value) || 20;
+    q.passingMark = parseInt(document.getElementById('q-passing-mark').value) || 10;
+    q.paper = document.getElementById('q-paper').value;
+  }
+  saveQuestionsToStorage();
+  alert('✅ Saved to browser storage');
+  // TODO: Send to Firebase
+};
+
+window.exportSchema = () => {
+  const json = JSON.stringify(allQuestions, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `k2-marking-scheme-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+};
+
+// ── GEMINI IMPORT ────────────────────────────────────────────────
+window.testGeminiKey = async () => {
+  const key = document.getElementById('gemini-api-key').value;
+  if (!key) { alert('Enter API key'); return; }
+  try {
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
+    });
+    if (resp.ok) {
+      alert('✅ API key is valid');
+      localStorage.setItem('gemini-api-key', key);
+    } else {
+      alert('❌ Invalid API key: ' + resp.statusText);
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+};
+
+window.importGeminiJSON = () => {
+  try {
+    const json = JSON.parse(document.getElementById('gemini-json-input').value);
+    if (!Array.isArray(json)) throw new Error('Expected array of questions');
+
+    json.forEach(item => {
+      const existing = allQuestions.find(q => q.questionNo === item.questionNo);
+      const q = existing || {
+        id: `q-${Date.now()}-${Math.random()}`,
+        questionNo: item.questionNo,
+        blocks: []
+      };
+
+      q.questionBM = item.questionBM || q.questionBM;
+      q.questionEN = item.questionEN || q.questionEN;
+      q.totalMarks = item.totalMarks || q.totalMarks || 20;
+      q.passingMark = item.passingMark || q.passingMark || 10;
+      q.blocks = item.blocks || q.blocks || [];
+
+      if (!existing) allQuestions.push(q);
+    });
+
+    saveQuestionsToStorage();
+    renderQuestionsList();
+    closeGeminiModal();
+    alert('✅ Imported ' + json.length + ' questions');
+  } catch(e) {
+    document.getElementById('gemini-error').textContent = 'Error: ' + e.message;
+    document.getElementById('gemini-error').classList.remove('hidden');
+  }
+};
+
+window.closeGeminiModal = () => {
+  document.getElementById('gemini-modal').classList.add('hidden');
+  document.getElementById('gemini-json-input').value = '';
+  document.getElementById('gemini-error').classList.add('hidden');
+};
+
+// ── UTILS ────────────────────────────────────────────────────────
+function escapeHtml(text) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+</script>
+
+</body>
+</html>

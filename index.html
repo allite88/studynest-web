@@ -69,6 +69,52 @@
       } catch(e) { return null; }
     };
 
+    window._checkPremium = async (uid) => {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return snap.exists() && snap.data().isPremium === true;
+    };
+
+    // Load pricing config from Firestore (cached)
+    let _pricingCache = null;
+    window._loadPricing = async () => {
+      if (_pricingCache) return _pricingCache;
+      try {
+        const snap = await getDoc(doc(db, 'config', 'pricing'));
+        _pricingCache = snap.exists() ? snap.data() : {};
+      } catch { _pricingCache = {}; }
+      return _pricingCache;
+    };
+
+    // Check what a user has purchased
+    let _purchasesCache = null;
+    window._getPurchases = async (uid) => {
+      if (_purchasesCache) return _purchasesCache;
+      try {
+        const snap = await getDoc(doc(db, 'purchases', uid));
+        _purchasesCache = snap.exists() ? snap.data() : {};
+      } catch { _purchasesCache = {}; }
+      return _purchasesCache;
+    };
+    window._clearPurchasesCache = () => { _purchasesCache = null; };
+
+    const CORE5_SUBJECTS = ['BM','BI','Math','Sejarah','Sains'];
+    window._hasSubjectAccess = async (subject, type) => {
+      // type: 'papers' | 'bundle'
+      const uid = auth.currentUser?.uid;
+      if (!uid) return false;
+      const p = await window._getPurchases(uid);
+      if (p.all_access) return true;
+      if (p.core5 && CORE5_SUBJECTS.includes(subject)) return true;
+      if (type === 'bundle') return !!(p[`${subject}_bundle`]);
+      return !!(p[`${subject}_papers`] || p[`${subject}_bundle`]);
+    };
+    window._hasCollectionAccess = async (contentId) => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return false;
+      const p = await window._getPurchases(uid);
+      return !!p[contentId];
+    };
+
     onAuthStateChanged(auth, async user => {
       let userData = null;
       let needsProfile = false;
@@ -128,6 +174,15 @@
     .btn-outline { border:1.5px solid var(--green); color:var(--green); }
     .btn-outline:hover { background:var(--sage); }
 
+    /* Toast */
+    #toast { position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%) translateY(120%);
+      background:#1C2B22; color:#fff; padding:.65rem 1.2rem; border-radius:99px;
+      font-size:.83rem; font-weight:600; z-index:999; transition:transform .25s ease;
+      white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,.25); }
+    #toast.show { transform:translateX(-50%) translateY(0); }
+    #toast.toast-ok  { background:#2d6a4f; }
+    #toast.toast-err { background:#b91c1c; }
+
     /* Paper buttons */
     .tag-s { background:#DBEAFE; color:#1D4ED8; }
     .tag-j { background:#D1FAE5; color:#065F46; }
@@ -160,7 +215,7 @@
     <!-- Logo -->
     <button onclick="nav('home')" class="flex items-center gap-2 shrink-0">
       <img src="logo.png" class="w-8 h-8 rounded-xl object-cover"/>
-      <span class="font-bold text-base" style="color:var(--text)">A<sup style="font-size:.65em;vertical-align:super;color:var(--green)">+</sup>llite</span>
+      <span class="font-bold text-base" style="color:var(--text)">A<sup style="font-size:.65em;vertical-align:super;color:#dc2626">+</sup>llite</span>
     </button>
 
     <!-- Nav (desktop) -->
@@ -168,9 +223,12 @@
       <button onclick="nav('home')"       class="nav-pill nav-idle" id="n-home">Home</button>
       <button onclick="nav('papers')"    class="nav-pill nav-idle" id="n-papers">Trial Papers</button>
       <button onclick="nav('notes')"     class="nav-pill nav-idle" id="n-notes">📖 Notes/Guides</button>
+      <button onclick="window.location.href='topics.html'" class="nav-pill nav-idle">🗂 By Topic</button>
       <button onclick="nav('collection')" class="nav-pill nav-idle" id="n-collection">📦 Collection</button>
       <button onclick="nav('books')"     class="nav-pill nav-idle" id="n-books">📚 Books</button>
       <button onclick="nav('careers')"   class="nav-pill nav-idle" id="n-careers">🎓 Careers</button>
+      <button onclick="nav('pricing')"   class="nav-pill nav-idle" id="n-pricing"
+        style="background:var(--amber-l);color:var(--amber)">💎 Jadi Ahli</button>
     </nav>
 
     <!-- Auth + Cart -->
@@ -195,7 +253,10 @@
       <div id="user-chip" class="hidden items-center gap-2">
         <img id="user-avatar" src="" class="w-8 h-8 rounded-full border-2 border-green-200" alt=""/>
         <span id="badge-prem" class="hidden text-xs font-bold px-2 py-0.5 rounded-full"
-          style="background:var(--amber-l);color:var(--amber)">⭐ Premium</span>
+          style="background:var(--amber-l);color:var(--amber)">⭐ Ahli</span>
+        <button id="btn-upgrade" onclick="nav('pricing')"
+          class="hidden text-xs font-bold px-3 py-1 rounded-full transition-colors"
+          style="background:var(--amber-l);color:var(--amber)">💎 Upgrade</button>
         <button onclick="window._logout()" class="text-xs hover:underline" style="color:var(--muted)">Sign out</button>
       </div>
     </div>
@@ -233,7 +294,7 @@
   </section>
 
   <!-- Quick links -->
-  <section class="max-w-6xl mx-auto px-4 py-12">
+  <section class="max-w-6xl mx-auto px-4 py-6 sm:py-10">
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       <button onclick="nav('papers')" class="card p-5 text-left hover:border-green-300">
         <div class="text-3xl mb-3">📄</div>
@@ -244,6 +305,11 @@
         <div class="text-3xl mb-3">📖</div>
         <div class="font-bold text-sm mb-1" style="color:var(--text)">Notes/Guides</div>
         <div class="text-xs" style="color:var(--muted)">Study notes · Online viewer</div>
+      </button>
+      <button onclick="window.location.href='topics.html'" class="card p-5 text-left hover:border-green-200">
+        <div class="text-3xl mb-3">🗂</div>
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">By Topic</div>
+        <div class="text-xs" style="color:var(--muted)">Latih mengikut bab · K1 & K2</div>
       </button>
       <button onclick="nav('collection')" class="card p-5 text-left hover:border-blue-200">
         <div class="text-3xl mb-3">📦</div>
@@ -335,8 +401,13 @@
       Nota ringkasan, panduan subjek, dan bahan bacaan — tersedia online.
     </p>
 
+    <!-- Year filter tabs -->
+    <div id="notes-year-tabs" class="scroll-row mb-3">
+      <button onclick="setNotesYear('all')" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold">Semua</button>
+    </div>
+
     <!-- Subject filter tabs -->
-    <div id="notes-subj-tabs" class="flex gap-2 mb-5 overflow-x-auto pb-1">
+    <div id="notes-subj-tabs" class="scroll-row mb-5">
       <button onclick="setNotesSubject('all')" id="ns-all"
         class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap">Semua</button>
     </div>
@@ -404,14 +475,35 @@
 <div id="pg-books" class="hidden">
   <div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="text-2xl font-bold mb-1" style="color:var(--text)">📚 Physical Books</h1>
-    <p class="text-sm mb-8" style="color:var(--muted)">Order online — delivery to your doorstep. Pay via TNG / FPX / Card.</p>
+    <p class="text-sm mb-5" style="color:var(--muted)">Order online — delivery to your doorstep. Pay via TNG / FPX / Card.</p>
 
-    <p class="text-xs mb-4 font-medium" style="color:var(--muted)">Soalan Percubaan SPM 2024 — Kertas 2 · Semua Negeri · Skema Jawapan Disertakan</p>
+    <!-- Year filter -->
+    <div class="scroll-row mb-3">
+      <button onclick="filterBooks('year','all')" id="by-all" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Semua</button>
+      <button onclick="filterBooks('year',2025)" id="by-2025" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2025</button>
+      <button onclick="filterBooks('year',2024)" id="by-2024" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2024</button>
+      <button onclick="filterBooks('year',2023)" id="by-2023" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">2023</button>
+    </div>
+    <!-- Subject filter -->
+    <div class="scroll-row mb-5" id="book-subj-row">
+      <button onclick="filterBooks('subj','all')" id="bs-all" class="yr-on px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Semua</button>
+      <button onclick="filterBooks('subj','Sejarah')" id="bs-sejarah" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Sejarah</button>
+      <button onclick="filterBooks('subj','Mathematics')" id="bs-math" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Math</button>
+      <button onclick="filterBooks('subj','Add Mathematics')" id="bs-addmath" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Add Math</button>
+      <button onclick="filterBooks('subj','Science')" id="bs-science" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Sains</button>
+      <button onclick="filterBooks('subj','Chemistry')" id="bs-chem" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Chemistry</button>
+      <button onclick="filterBooks('subj','Biology')" id="bs-bio" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Biology</button>
+      <button onclick="filterBooks('subj','Physics')" id="bs-physics" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Physics</button>
+      <button onclick="filterBooks('subj','Bahasa Melayu')" id="bs-bm" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">BM</button>
+      <button onclick="filterBooks('subj','Perakaunan')" id="bs-akuan" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Perakaunan</button>
+      <button onclick="filterBooks('subj','Ekonomi')" id="bs-eko" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Ekonomi</button>
+      <button onclick="filterBooks('subj','Perniagaan')" id="bs-perniagaan" class="yr-off px-4 py-1.5 rounded-full text-sm font-semibold transition-all">Perniagaan</button>
+    </div>
 
     <!-- Book grid -->
     <div id="book-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Sejarah" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--amber-l),#FBDBB5)">📜</div>
         <div class="p-4">
@@ -426,7 +518,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Mathematics" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--amber-l),#FBDBB5)">🧮</div>
         <div class="p-4">
@@ -441,7 +533,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Add Mathematics" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--amber-l),#FDE8C4)">📐</div>
         <div class="p-4">
@@ -456,7 +548,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Science" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sage),#C8E6D0)">🔬</div>
         <div class="p-4">
@@ -471,7 +563,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Chemistry" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sage),#B8E0C8)">⚗️</div>
         <div class="p-4">
@@ -486,7 +578,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Biology" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sage),#C8E6D0)">🧬</div>
         <div class="p-4">
@@ -501,7 +593,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Physics" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sky),#C2DEF2)">⚡</div>
         <div class="p-4">
@@ -516,7 +608,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Bahasa Melayu" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sky),#D0E8F5)">📝</div>
         <div class="p-4">
@@ -531,7 +623,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Perakaunan" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sage),#D2E8D8)">📊</div>
         <div class="p-4">
@@ -546,7 +638,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Ekonomi" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sky),#C8DFF0)">📈</div>
         <div class="p-4">
@@ -561,7 +653,7 @@
         </div>
       </div>
 
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" data-subj="Perniagaan" data-year="2024">
         <div class="h-28 flex items-center justify-center text-4xl select-none"
           style="background:linear-gradient(135deg,var(--sage),#C8E0D0)">💼</div>
         <div class="p-4">
@@ -833,6 +925,144 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
+     PRICING
+════════════════════════════════════════════════════════════════ -->
+<div id="pg-pricing" class="hidden">
+  <div class="max-w-4xl mx-auto px-4 py-12">
+
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <div class="text-xs font-bold uppercase tracking-widest mb-2 inline-block px-3 py-1 rounded-full"
+        style="background:var(--amber-l);color:var(--amber)">💎 Pelan Ahli</div>
+      <h1 class="text-3xl font-extrabold mb-2 serif" style="color:var(--text)">Belajar Lebih Bijak</h1>
+      <p class="text-sm max-w-sm mx-auto" style="color:var(--muted)">
+        Dapatkan akses penuh ke semua kandungan, AI tutor tanpa had, dan analisis kelemahan anda.
+      </p>
+    </div>
+
+    <!-- Already premium -->
+    <div id="pricing-already" class="hidden text-center mb-8">
+      <div class="inline-block card px-8 py-6">
+        <div class="text-4xl mb-3">⭐</div>
+        <div class="font-bold text-lg mb-1" style="color:var(--text)">Anda sudah menjadi Ahli Allite</div>
+        <p class="text-sm" style="color:var(--muted)">Terima kasih kerana menyokong Allite!</p>
+      </div>
+    </div>
+
+    <!-- Pricing cards -->
+    <div id="pricing-cards" class="mb-10">
+
+      <!-- Per-subject option -->
+      <div class="card p-5 mb-4 max-w-2xl mx-auto">
+        <div class="font-bold text-sm mb-1" style="color:var(--text)">📄 Beli Mengikut Subjek</div>
+        <p class="text-xs mb-3" style="color:var(--muted)">Pilih subjek yang anda perlukan sahaja. Harga berbeza mengikut subjek.</p>
+        <button onclick="showSubjectSelectorModal()"
+          class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+          Pilih Subjek →
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+        <!-- Core 5 -->
+        <div class="card p-5 flex flex-col">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-bold text-sm" style="color:var(--text)">📚 Core 5 Bundle</span>
+          </div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold pricing-core5-rm" style="color:var(--text)">69.00</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">RM · sekali bayar</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">BM · BI · Math · Sejarah · Sains</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Papers + Nota (5 subjek)</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>AI Tutor tanpa had</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Akses selamanya</li>
+          </ul>
+          <button onclick="startPayment('core5',this)"
+            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Beli Core 5
+          </button>
+        </div>
+
+        <!-- All Access -->
+        <div class="card p-5 flex flex-col" style="border:2px solid var(--amber)">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-bold text-sm" style="color:var(--text)">🌟 All Access</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">BEST VALUE</span>
+          </div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold pricing-all-rm" style="color:var(--text)">149.00</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">RM · sekali bayar</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Semua 14 subjek SPM</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Papers + Nota (14 subjek)</li>
+            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>AI Tutor tanpa had</li>
+            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Error Book & analisis kelemahan</li>
+            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Akses selamanya</li>
+          </ul>
+          <button onclick="startPayment('all_access',this)"
+            class="btn-amber w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Beli All Access
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Free vs Ahli comparison -->
+    <div class="card overflow-hidden max-w-2xl mx-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="background:var(--sage)">
+            <th class="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide" style="color:var(--muted)">Ciri</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-center" style="color:var(--muted)">Percuma</th>
+            <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-center" style="color:var(--amber)">Ahli 💎</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Quiz & Trial Papers</td>
+            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">Terhad</td>
+            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Semua</td>
+          </tr>
+          <tr class="border-t border-slate-100" style="background:#fafafa">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">AI Tutor</td>
+            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">3x sehari</td>
+            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Tanpa had</td>
+          </tr>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Notes & Guides</td>
+            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">Percuma sahaja</td>
+            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Semua</td>
+          </tr>
+          <tr class="border-t border-slate-100" style="background:#fafafa">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Error Book & Analisis</td>
+            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓</td>
+          </tr>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Streak & Gamifikasi</td>
+            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Login prompt for guests -->
+    <div id="pricing-login-prompt" class="hidden text-center mt-8">
+      <p class="text-sm mb-3" style="color:var(--muted)">Daftar masuk untuk membeli pelan.</p>
+      <button onclick="window._login()"
+        class="btn-primary font-semibold px-6 py-2.5 rounded-xl text-sm flex items-center gap-2 mx-auto transition-colors">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-4 h-4 invert"/>
+        Daftar Masuk dengan Google
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
      JS
 ════════════════════════════════════════════════════════════════ -->
 <!-- PDF VIEWER MODAL -->
@@ -929,31 +1159,36 @@
 </style>
 <script>
 /* ── Auth ──────────────────────────────────────────────────────── */
-let currentUser = null, userSubjects = [];
+let currentUser = null, userSubjects = [], IS_PREMIUM = false;
 
 window._onAuth = function(user, userData, needsProfile) {
   currentUser = user;
   userSubjects = userData?.subjects || [];
-  const hasPaid = userSubjects.length > 0;
-  const btnLogin  = document.getElementById('btn-login');
-  const userChip  = document.getElementById('user-chip');
-  const badgePrem = document.getElementById('badge-prem');
+  IS_PREMIUM = !!(userData?.isPremium);
+  const btnLogin   = document.getElementById('btn-login');
+  const userChip   = document.getElementById('user-chip');
+  const badgePrem  = document.getElementById('badge-prem');
+  const btnUpgrade = document.getElementById('btn-upgrade');
   if (user) {
     btnLogin.classList.add('hidden'); btnLogin.classList.remove('flex');
     userChip.classList.remove('hidden'); userChip.classList.add('flex');
     document.getElementById('user-avatar').src = user.photoURL||'';
-    if (hasPaid) { badgePrem.classList.remove('hidden'); badgePrem.textContent = '⭐ ' + userSubjects.join(', '); }
-    else badgePrem.classList.add('hidden');
+    if (IS_PREMIUM) {
+      badgePrem.classList.remove('hidden');
+      btnUpgrade && btnUpgrade.classList.add('hidden');
+    } else {
+      badgePrem.classList.add('hidden');
+      btnUpgrade && btnUpgrade.classList.remove('hidden');
+    }
     if (needsProfile) showRegModal(user.displayName || '');
   } else {
     btnLogin.classList.remove('hidden'); btnLogin.classList.add('flex');
     userChip.classList.add('hidden'); userChip.classList.remove('flex');
     badgePrem.classList.add('hidden');
   }
-  if (!document.getElementById('pg-notes').classList.contains('hidden'))
-    loadNotesPage();
-  if (!document.getElementById('pg-papers').classList.contains('hidden'))
-    renderPapers();
+  if (!document.getElementById('pg-notes').classList.contains('hidden'))   loadNotesPage();
+  if (!document.getElementById('pg-papers').classList.contains('hidden'))  renderPapers();
+  if (!document.getElementById('pg-pricing').classList.contains('hidden')) renderPricing();
 };
 
 /* ── Registration modal ─────────────────────────────────────────── */
@@ -973,7 +1208,7 @@ async function submitReg() {
 }
 
 /* ── Navigation ───────────────────────────────────────────────── */
-const PAGES = ['home','papers','notes','collection','books','cart','careers'];
+const PAGES = ['home','papers','notes','collection','books','cart','careers','pricing'];
 
 // Quiz registry — loaded once
 let _quizRegistry = null;
@@ -1002,6 +1237,7 @@ function nav(page) {
   if (page==='papers')     renderPapers();
   if (page==='collection') renderCollection();
   if (page==='cart')       renderCart();
+  if (page==='pricing')    renderPricing();
   document.getElementById('cart-btn').style.display = cart.length && page!=='cart' ? 'block' : 'none';
 }
 
@@ -1112,6 +1348,14 @@ function paperCard(p) {
     </div>`;
   }
 
+  if (p.qaId) {
+    rows += `<div class="flex items-center justify-between py-1.5 border-t" style="border-color:#EEF4EF">
+      <span class="text-sm font-medium" style="color:var(--text)">K2 Esei</span>
+      <a href="qa.html?id=${p.qaId}"
+        class="tag-s text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">📝 Latih</a>
+    </div>`;
+  }
+
   if (!rows) rows = '<div class="text-xs py-2" style="color:var(--muted)">Kandungan belum tersedia</div>';
 
   return `<div class="card p-4">
@@ -1138,7 +1382,7 @@ function closePdfViewer() {
 }
 
 /* ── Notes / Guides ─────────────────────────────────────────────── */
-let _notesData = null, _notesSubject = 'all';
+let _notesData = null, _notesSubject = 'all', _notesYear = 'all';
 
 async function loadNotesPage() {
   if (_notesData) { renderNotes(); return; }
@@ -1156,16 +1400,25 @@ function renderNotes() {
   closeNotesViewer();
   closeNotesGate();
 
-  const items = (_notesData || []).filter(n => _notesSubject === 'all' || n.subject === _notesSubject);
+  // Build year filter from all data
+  const years = [...new Set((_notesData||[]).map(n => n.year).filter(Boolean))].sort((a,b) => b-a);
+  document.getElementById('notes-year-tabs').innerHTML = ['all', ...years].map(y => `
+    <button onclick="setNotesYear(${y === 'all' ? "'all'" : y})"
+      class="px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${String(y) === String(_notesYear) ? 'yr-on' : 'yr-off'}">
+      ${y === 'all' ? 'Semua' : y}
+    </button>`).join('');
 
-  // Build subject tab pills from data
-  const subjects = [...new Set((_notesData||[]).map(n => n.subject).filter(Boolean))].sort();
+  // Year-filtered data for subject tabs
+  const yearFiltered = (_notesData||[]).filter(n => _notesYear === 'all' || String(n.year) === String(_notesYear));
+  const subjects = [...new Set(yearFiltered.map(n => n.subject).filter(Boolean))].sort();
   const tabsEl = document.getElementById('notes-subj-tabs');
   tabsEl.innerHTML = ['all', ...subjects].map(s => `
     <button onclick="setNotesSubject('${s}')"
       class="px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${s === _notesSubject ? 'yr-on' : 'yr-off'}">
       ${s === 'all' ? 'Semua' : s}
     </button>`).join('');
+
+  const items = yearFiltered.filter(n => _notesSubject === 'all' || n.subject === _notesSubject);
 
   const grid = document.getElementById('notes-grid');
   if (!items.length) {
@@ -1203,6 +1456,7 @@ function renderNotes() {
 }
 
 function setNotesSubject(s) { _notesSubject = s; renderNotes(); }
+function setNotesYear(y) { _notesYear = y; _notesSubject = 'all'; renderNotes(); }
 
 function openNoteItem(id, title, access, url, subject, qaId) {
   closeNotesGate();
@@ -1234,30 +1488,8 @@ function showUnlockModal(subject) {
   document.getElementById('modal-unlock').classList.remove('hidden');
 }
 
-async function openQAViewer(contentId, title, qaId) {
-  const modal = document.getElementById('qa-modal');
-  document.getElementById('qa-modal-title').textContent = title;
-  document.getElementById('qa-modal-body').innerHTML = '<div class="text-center py-8 text-sm" style="color:var(--muted)">Memuatkan...</div>';
-  modal.classList.remove('hidden');
-  let attempts = 0;
-  while (!window._loadQA && attempts++ < 20) await new Promise(r => setTimeout(r,100));
-  const qa = await window._loadQA(qaId);
-  if (!qa || !qa.questions?.length) {
-    document.getElementById('qa-modal-body').innerHTML = '<div class="text-center py-8 text-sm" style="color:var(--muted)">Tiada soalan tersedia.</div>';
-    return;
-  }
-  document.getElementById('qa-modal-body').innerHTML = qa.questions.map((q,i) => `
-    <div class="border border-green-100 rounded-xl p-4 mb-4">
-      <div class="flex items-start gap-2 mb-3">
-        <span class="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--sage);color:var(--green)">${q.marks||''}m</span>
-        <div class="font-semibold text-sm" style="color:var(--text)">${i+1}. ${escHtmlQ(q.q||'')}</div>
-      </div>
-      ${q.qImg ? `<img src="${q.qImg}" class="max-w-full rounded-lg mb-3 border border-green-100">` : ''}
-      <div class="bg-green-50 rounded-lg p-3">
-        <div class="text-xs font-bold mb-2" style="color:var(--green)">✏️ Jawapan Model</div>
-        <div class="text-sm leading-relaxed" style="color:var(--text)">${highlightKeywords(q.answer||'', q.keywords||[])}</div>
-      </div>
-    </div>`).join('');
+function openQAViewer(contentId, title, qaId) {
+  window.location.href = `qa.html?id=${qaId}`;
 }
 
 function highlightKeywords(text, keywords) {
@@ -1318,14 +1550,82 @@ function renderCart(){
   const tot=cart.reduce((s,i)=>s+i.price*i.qty,0);
   document.getElementById('cart-total').textContent='RM '+tot.toFixed(2);
 }
-function checkout(){
-  const name=document.getElementById('f-name').value.trim();
-  const phone=document.getElementById('f-phone').value.trim();
-  const email=document.getElementById('f-email').value.trim();
-  const addr=document.getElementById('f-addr').value.trim();
-  if(!name||!phone||!email||!addr){alert('Please fill in all required fields.');return;}
-  // TODO: submit order to Billplz / backend
-  alert('Redirecting to payment...\n(Billplz integration — replace this with actual payment link)');
+async function checkout(){
+  if (!currentUser) { window._login(); return; }
+  const name  = document.getElementById('f-name').value.trim();
+  const phone = document.getElementById('f-phone').value.trim();
+  const email = document.getElementById('f-email').value.trim() || currentUser.email;
+  const addr  = document.getElementById('f-addr').value.trim();
+  const note  = document.getElementById('f-note').value.trim();
+  if (!name||!phone||!addr) { showToast('Sila lengkapkan maklumat penghantaran.','err'); return; }
+  if (!cart.length)         { showToast('Troli anda kosong.','err'); return; }
+
+  const btn = document.querySelector('#pg-cart button[onclick="checkout()"]');
+  if (btn) { btn.textContent = 'Menyediakan...'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/.netlify/functions/create-bill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid:   currentUser.uid,
+        email,
+        name:  currentUser.displayName || name,
+        plan:  'books_order',
+        items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
+        shipping: { name, phone, address: addr, note },
+      }),
+    });
+    const data = await res.json();
+    if (!data.url) throw new Error(data.error || 'Gagal');
+    window.location.href = data.url;
+  } catch (e) {
+    showToast('❌ ' + e.message, 'err');
+    if (btn) { btn.textContent = 'Pay with TNG / FPX / Card →'; btn.disabled = false; }
+  }
+}
+
+/* ── Books filter ──────────────────────────────────────────────── */
+let bookYear = 'all', bookSubj = 'all';
+
+function filterBooks(type, value) {
+  if (type === 'year') bookYear = value;
+  else bookSubj = value;
+
+  const yearBtns = { all:'by-all', 2025:'by-2025', 2024:'by-2024', 2023:'by-2023' };
+  Object.entries(yearBtns).forEach(([y, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'px-4 py-1.5 rounded-full text-sm font-semibold transition-all ' +
+      (String(y) === String(bookYear) ? 'yr-on' : 'yr-off');
+  });
+
+  const subjBtns = { all:'bs-all', Sejarah:'bs-sejarah', Mathematics:'bs-math', 'Add Mathematics':'bs-addmath',
+    Science:'bs-science', Chemistry:'bs-chem', Biology:'bs-bio', Physics:'bs-physics',
+    'Bahasa Melayu':'bs-bm', Perakaunan:'bs-akuan', Ekonomi:'bs-eko', Perniagaan:'bs-perniagaan' };
+  Object.entries(subjBtns).forEach(([s, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'px-4 py-1.5 rounded-full text-sm font-semibold transition-all ' +
+      (s === bookSubj ? 'yr-on' : 'yr-off');
+  });
+
+  let visible = 0;
+  document.querySelectorAll('#book-grid [data-subj]').forEach(card => {
+    const matchY = bookYear === 'all' || String(card.dataset.year) === String(bookYear);
+    const matchS = bookSubj === 'all' || card.dataset.subj === bookSubj;
+    card.style.display = (matchY && matchS) ? '' : 'none';
+    if (matchY && matchS) visible++;
+  });
+
+  let empty = document.getElementById('book-empty');
+  if (!empty) {
+    empty = document.createElement('p');
+    empty.id = 'book-empty';
+    empty.className = 'text-sm col-span-3 text-center py-10';
+    empty.style.color = 'var(--muted)';
+    empty.textContent = 'Tiada buku untuk pilihan ini.';
+    document.getElementById('book-grid').appendChild(empty);
+  }
+  empty.style.display = visible === 0 ? '' : 'none';
 }
 
 /* ── Collection ────────────────────────────────────────────────── */
@@ -1456,10 +1756,8 @@ async function unlockCollFull() {
 }
 
 function buyColl(id, title) {
-  const ref = encodeURIComponent(`coll_${id}_${window._getUid()}`);
-  const desc = encodeURIComponent(title);
-  // TODO: replace YOUR_BILLPLZ_COLLECTION_ID with actual ID
-  alert('Sediakan akaun Billplz dan gantikan baris ini dengan:\nwindow.location.href = `https://www.billplz.com/pay/YOUR_BILLPLZ_COLLECTION_ID?reference_1=' + ref + '&description=' + desc + '&amount=199`;');
+  closeCollGate();
+  showCollectionPaywall(id, title);
 }
 
 function closeCollGate() {
@@ -1481,8 +1779,234 @@ window._onAuth = function(user, premium, needsProfile) {
   if (user && _collCurrent) unlockCollFull();
 };
 
+/* ── Subject selector (pricing page) ───────────────────────────── */
+const ALL_SUBJECTS = ['BM','BI','Math','Add Math','Sejarah','Biology','Chemistry','Physics','P.Islam','Moral','Sains','Ekonomi','P.Akaun','Geografi'];
+
+function closeSubjSelect() {
+  const m = document.getElementById('modal-subj-select');
+  m.style.display = 'none'; m.classList.add('hidden');
+}
+async function showSubjectSelectorModal() {
+  if (!currentUser) { window._login(); return; }
+  const pricing  = await window._loadPricing();
+  const list = document.getElementById('subj-select-list');
+  list.innerHTML = ALL_SUBJECTS.map(s => {
+    const sp = pricing.subjects?.[s] || { papers: 1490, bundle: 2290 };
+    const pRm = (sp.papers / 100).toFixed(2);
+    const bRm = (sp.bundle / 100).toFixed(2);
+    return `<div class="border border-slate-200 rounded-xl p-3">
+      <div class="font-semibold text-sm mb-2" style="color:var(--text)">${s}</div>
+      <div class="flex gap-2">
+        <button onclick="startPayment('${s}_papers',this);closeSubjSelect()"
+          class="flex-1 text-xs py-1.5 rounded-lg border border-slate-200 hover:bg-green-50 transition-colors font-medium">
+          Papers <span class="font-bold">RM${pRm}</span>
+        </button>
+        <button onclick="startPayment('${s}_bundle',this);closeSubjSelect()"
+          class="flex-1 text-xs py-1.5 rounded-lg transition-colors font-medium btn-amber">
+          Papers+Nota <span class="font-bold">RM${bRm}</span>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  const m = document.getElementById('modal-subj-select');
+  m.classList.remove('hidden'); m.style.display = 'flex';
+}
+
+/* ── Paywall ────────────────────────────────────────────────────── */
+const CORE5 = ['BM','BI','Math','Sejarah','Sains'];
+
+function closePaywall() {
+  const m = document.getElementById('modal-paywall');
+  m.style.display = 'none'; m.classList.add('hidden');
+}
+function _openPaywall() {
+  const m = document.getElementById('modal-paywall');
+  m.classList.remove('hidden'); m.style.display = 'flex';
+}
+
+function _pwOption(label, sub, plan, rmAmount, recommended) {
+  return `<button onclick="startPayment('${plan}',this)"
+    class="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left
+      ${recommended ? 'border-amber-300 bg-amber-50' : 'border-slate-200 hover:border-green-300 hover:bg-green-50'}">
+    <div>
+      <span class="font-semibold text-sm" style="color:var(--text)">${label}</span>
+      ${recommended ? '<span class="ml-2 text-xs font-bold px-1.5 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">Popular</span>' : ''}
+      ${sub ? `<div class="text-xs mt-0.5" style="color:var(--muted)">${sub}</div>` : ''}
+    </div>
+    <span class="font-extrabold text-sm shrink-0 ml-3" style="color:var(--text)">RM${rmAmount}</span>
+  </button>`;
+}
+
+async function showSubjectPaywall(subject, type) {
+  // type: 'papers' or 'bundle' — which content was accessed
+  document.getElementById('pw-title').textContent = `🔒 ${subject}`;
+  document.getElementById('pw-subtitle').textContent = type === 'bundle'
+    ? 'Papers + Nota — akses ahli diperlukan'
+    : 'Trial Papers — pilih pelan di bawah';
+
+  const pricing = await window._loadPricing();
+  const sp = pricing.subjects?.[subject] || { papers: 1490, bundle: 2290 };
+  const papersRm = (sp.papers / 100).toFixed(2);
+  const bundleRm = (sp.bundle / 100).toFixed(2);
+  const core5Rm  = ((pricing.core5 || 6900) / 100).toFixed(2);
+  const allRm    = ((pricing.allAccess || 14900) / 100).toFixed(2);
+
+  let opts = '';
+  if (type === 'papers')
+    opts += _pwOption(`📄 ${subject} — Papers sahaja`, null, `${subject}_papers`, papersRm, false);
+  opts += _pwOption(`📦 ${subject} — Papers + Nota`, 'Akses penuh untuk subjek ini', `${subject}_bundle`, bundleRm, true);
+  if (CORE5.includes(subject))
+    opts += _pwOption('📚 Core 5 Bundle', 'BM · BI · Math · Sejarah · Sains', 'core5', core5Rm, false);
+  opts += _pwOption('🌟 All Access', 'Semua 14 subjek Papers + Nota', 'all_access', allRm, false);
+
+  document.getElementById('pw-options').innerHTML = opts;
+  document.getElementById('pw-login').classList.toggle('hidden', !!currentUser);
+  _openPaywall();
+}
+
+async function showCollectionPaywall(contentId, title) {
+  document.getElementById('pw-title').textContent = `🔒 ${title}`;
+  document.getElementById('pw-subtitle').textContent = 'Bayar sekali, akses selamanya';
+
+  const pricing = await window._loadPricing();
+  const rmAmount = ((pricing.collItem || 199) / 100).toFixed(2);
+
+  document.getElementById('pw-options').innerHTML =
+    _pwOption('💳 Akses Penuh', 'PDF lengkap tanpa had muka surat', `collection_${contentId}`, rmAmount, true);
+
+  document.getElementById('pw-login').classList.toggle('hidden', !!currentUser);
+  _openPaywall();
+}
+
+/* ── Pricing page ──────────────────────────────────────────────── */
+async function renderPricing() {
+  const already = document.getElementById('pricing-already');
+  const cards   = document.getElementById('pricing-cards');
+  const loginP  = document.getElementById('pricing-login-prompt');
+
+  already.classList.toggle('hidden', !IS_PREMIUM);
+  cards.classList.toggle('hidden',    IS_PREMIUM);
+  loginP.classList.toggle('hidden',   !!currentUser || IS_PREMIUM);
+
+  if (IS_PREMIUM) return;
+
+  // Load live prices from Firestore
+  const pricing  = await window._loadPricing();
+  const monthlyRm = ((pricing.subjects?.Sejarah?.papers || 1490) / 100).toFixed(2); // use cheapest subject as ref
+  const core5Rm   = ((pricing.core5     || 6900)  / 100).toFixed(2);
+  const allRm     = ((pricing.allAccess || 14900) / 100).toFixed(2);
+
+  // Update All Access card prices
+  document.querySelectorAll('.pricing-all-rm').forEach(el => el.textContent = allRm);
+  document.querySelectorAll('.pricing-core5-rm').forEach(el => el.textContent = core5Rm);
+}
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+let _toastTimer;
+function showToast(msg, type = 'default', duration = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type === 'ok' ? ' toast-ok' : type === 'err' ? ' toast-err' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+/* ── Payment ────────────────────────────────────────────────────── */
+async function startPayment(plan, btn) {
+  if (!currentUser) { window._login(); return; }
+
+  const origText = btn.textContent;
+  btn.textContent = 'Menyediakan...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/.netlify/functions/create-bill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid:   currentUser.uid,
+        email: currentUser.email,
+        name:  currentUser.displayName || '',
+        plan,
+      }),
+    });
+    const data = await res.json();
+    if (!data.url) throw new Error(data.error || 'Gagal mencipta bil');
+    window.location.href = data.url;
+  } catch (e) {
+    showToast('❌ ' + e.message, 'err');
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+// Handle redirect back from ToyyibPay
+(function checkPaymentReturn() {
+  const p = new URLSearchParams(window.location.search);
+  const sid = p.get('status_id');
+  if (!sid) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  if (sid === '1') {
+    showToast('✅ Pembayaran berjaya! Akaun ahli sedang diaktifkan...', 'ok', 6000);
+    // Poll Firestore for IS_PREMIUM update (callback may need a moment)
+    if (window._clearPurchasesCache) window._clearPurchasesCache();
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      if (++attempts > 10) { clearInterval(poll); return; }
+      const uid = window._getUid ? window._getUid() : null;
+      if (!uid || !window._checkPremium) return;
+      try {
+        if (window._clearPurchasesCache) window._clearPurchasesCache();
+        const ok = await window._checkPremium(uid);
+        if (ok) { clearInterval(poll); showToast('✅ Akaun ahli diaktifkan! Selamat belajar 🎉', 'ok', 5000); }
+      } catch {}
+    }, 3000);
+  } else {
+    showToast('⚠️ Pembayaran tidak berjaya. Sila cuba semula.', 'err', 5000);
+  }
+})();
+
 /* Init */
 nav('home');
 </script>
+
+<!-- Toast element -->
+<div id="toast"></div>
+
+<!-- Subject Selector Modal (for per-subject purchase from pricing page) -->
+<div id="modal-subj-select" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;display:none;align-items:center;justify-content:center;padding:16px"
+  onclick="if(event.target===this)closeSubjSelect()">
+  <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl" style="max-height:90vh;overflow-y:auto">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <span class="font-bold text-base" style="color:var(--text)">Pilih Subjek</span>
+      <button onclick="closeSubjSelect()" class="text-slate-400 text-2xl leading-none">×</button>
+    </div>
+    <div class="p-4 space-y-2" id="subj-select-list"></div>
+  </div>
+</div>
+
+<!-- Paywall Modal -->
+<div id="modal-paywall" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;display:none;align-items:center;justify-content:center;padding:16px"
+  onclick="if(event.target===this)closePaywall()">
+  <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl" style="max-height:90vh;overflow-y:auto">
+    <div class="p-5 border-b border-slate-100 flex items-start justify-between">
+      <div>
+        <div class="font-bold text-base" id="pw-title" style="color:var(--text)"></div>
+        <div class="text-xs mt-0.5" id="pw-subtitle" style="color:var(--muted)"></div>
+      </div>
+      <button onclick="closePaywall()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none ml-3">×</button>
+    </div>
+    <div class="p-5 space-y-2" id="pw-options"></div>
+    <div id="pw-login" class="hidden px-5 pb-5">
+      <p class="text-xs mb-3 text-center" style="color:var(--muted)">Daftar masuk untuk membeli.</p>
+      <button onclick="window._login()"
+        class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-4 h-4 invert"/>
+        Daftar Masuk dengan Google
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

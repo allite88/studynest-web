@@ -36,6 +36,7 @@
   ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
   .slot-row { border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fafbfc; transition:.15s; }
   .slot-row.has-quiz { border-color:#c7d2fe; background:#eef2ff; }
+  .slot-row.has-marking { border-color:#bfdbfe; background:#ecfdf5; }
   .slot-row.has-pdf  { border-color:#bbf7d0; background:#f0fdf4; }
   .q-card { border:1px solid #e2e8f0; border-radius:10px; background:white; margin-bottom:6px; transition:.15s; }
   .q-card.expanded { border-color:#6366f1; box-shadow:0 0 0 2px #eef2ff; }
@@ -80,6 +81,7 @@
     <button onclick="mainTab('content')" id="mt-content" class="tab-active px-4 py-3 text-sm transition">📚 Content</button>
     <button onclick="mainTab('members')" id="mt-members" class="tab-idle px-4 py-3 text-sm transition">👥 Members</button>
     <button onclick="mainTab('orders')"  id="mt-orders"  class="tab-idle px-4 py-3 text-sm transition">📦 Orders</button>
+    <button onclick="mainTab('pricing')" id="mt-pricing" class="tab-idle px-4 py-3 text-sm transition">⚙️ Pricing</button>
   </div>
 
   <!-- CONTENT TAB -->
@@ -109,6 +111,7 @@
 
     <!-- Q&A EDITOR (replaces content body, for Notes tab) -->
     <div id="qa-editor" class="hidden">
+      <!-- Header -->
       <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex items-center gap-3 flex-wrap">
         <button onclick="closeQAEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Notes</button>
         <div class="h-4 w-px bg-slate-200"></div>
@@ -122,26 +125,60 @@
         </div>
       </div>
 
-      <!-- AI Extraction Panel (Q&A) -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-        <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan Esei)</div>
-        <div class="flex gap-2 flex-wrap items-center mb-3">
-          <input id="gemini-key-qa" type="password" placeholder="API Key (boleh key1,key2,key3)" class="field" style="max-width:320px">
-          <label class="flex items-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
-            📄 Upload PDF
-            <input type="file" accept="application/pdf" class="hidden" onchange="extractQAFromPdf(this)">
-          </label>
-        </div>
-        <div id="qa-extract-log" class="bg-slate-50 rounded-lg p-2 max-h-28 overflow-y-auto hidden"></div>
-      </div>
+      <!-- 2-column layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      <!-- Q&A List -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="font-semibold text-slate-700 text-sm">Soalan & Jawapan</div>
-          <button onclick="addQAQuestion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">+ Tambah Soalan</button>
+        <!-- LEFT: Questions Editor -->
+        <div>
+          <!-- AI Extraction -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+            <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan Esei)</div>
+            <div class="flex gap-2 flex-wrap items-center mb-2">
+              <input id="gemini-key-qa" type="password" placeholder="API Key" class="field" style="max-width:220px">
+              <button onclick="testGeminiKey('gemini-key-qa')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl transition">🔍 Test</button>
+              <label class="flex items-center gap-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
+                📄 Upload Soalan
+                <input type="file" accept="application/pdf" class="hidden" onchange="showFileName(this,'qa-pdf-name');extractQAFromPdf(this)">
+              </label>
+              <span id="qa-pdf-name" class="text-xs text-slate-500 max-w-[160px] truncate"></span>
+              <span id="gemini-key-qa-status" class="text-xs"></span>
+            </div>
+            <div id="qa-extract-log" class="bg-slate-50 rounded-lg p-2 max-h-24 overflow-y-auto hidden"></div>
+          </div>
+
+          <!-- Q&A List -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold text-slate-700 text-sm">Soalan & Jawapan</div>
+              <div class="flex gap-2">
+                <button onclick="openImportJSON()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition">📋 Import JSON</button>
+                <button onclick="openImportQATips()" class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition">💬 Import Tips</button>
+                <button onclick="addQAQuestion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">+ Tambah Soalan</button>
+              </div>
+            </div>
+            <div id="qae-list"></div>
+          </div>
         </div>
-        <div id="qae-list"></div>
+
+        <!-- RIGHT: Skema Reference -->
+        <div class="lg:sticky lg:top-4 lg:self-start">
+          <div class="bg-white rounded-xl border border-amber-200 p-4">
+            <div class="font-semibold text-slate-700 text-sm mb-3">📋 Skema Jawapan (Reference)</div>
+            <div class="flex gap-2 flex-wrap items-center mb-3">
+              <label class="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
+                🗝 Upload Skema
+                <input type="file" accept="application/pdf,image/*" class="hidden" onchange="extractSkema(this)">
+              </label>
+              <button id="skema-retry-btn" onclick="retrySkema()" class="hidden bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl transition">🔄 Retry</button>
+              <span id="skema-pdf-name" class="text-xs text-slate-500 max-w-[140px] truncate"></span>
+            </div>
+            <div id="skema-log" class="hidden text-xs text-slate-400 mb-2"></div>
+            <div id="skema-panel" class="bg-slate-50 rounded-xl p-3 max-h-[600px] overflow-y-auto text-xs text-slate-500 italic">
+              Tiada skema. Upload skema jawapan untuk rujukan.
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -166,22 +203,82 @@
         <div class="font-semibold text-slate-700 text-sm mb-3">🤖 AI Extraction (PDF → Soalan)</div>
         <div class="flex gap-2 flex-wrap items-center mb-3">
           <input id="gemini-key-input" type="password" placeholder="API Key (boleh key1,key2,key3)" class="field" style="max-width:320px">
+          <button onclick="testGeminiKey('gemini-key-input')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl transition">🔍 Test Key</button>
           <label class="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
             📄 Upload PDF
-            <input type="file" accept="application/pdf" class="hidden" onchange="extractFromPdf(this)">
+            <input type="file" accept="application/pdf" class="hidden" onchange="showFileName(this,'k1-pdf-name');extractFromPdf(this)">
           </label>
-          <span class="text-xs text-slate-400">PDF akan dihantar ke Gemini AI untuk ekstrak soalan</span>
+          <span id="k1-pdf-name" class="text-xs text-slate-500 max-w-[160px] truncate"></span>
+          <span id="gemini-key-input-status" class="text-xs"></span>
         </div>
         <div id="extract-log" class="bg-slate-50 rounded-lg p-2 max-h-28 overflow-y-auto hidden"></div>
+        <div class="flex gap-2 flex-wrap items-center mt-2">
+          <label class="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer transition">
+            🗝 Upload Answer Key
+            <input type="file" accept="application/pdf,image/*" class="hidden" onchange="showFileName(this,'anskey-pdf-name');extractAnswerKey(this)">
+          </label>
+          <span id="anskey-pdf-name" class="text-xs text-slate-500 max-w-[160px] truncate"></span>
+        </div>
+        <div id="anskey-log" class="bg-slate-50 rounded-lg p-2 max-h-20 overflow-y-auto hidden mt-1"></div>
       </div>
 
       <!-- Questions List -->
       <div class="bg-white rounded-xl border border-slate-200 p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="font-semibold text-slate-700 text-sm">Soalan</div>
-          <button onclick="addQuestion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">+ Tambah Soalan</button>
+          <div class="flex gap-2">
+            <button onclick="openImportK1JSON()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition">📋 Import JSON</button>
+            <button onclick="openImportK1Exp()" class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition">💬 Import 解释</button>
+            <button onclick="addQuestion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">+ Tambah Soalan</button>
+          </div>
         </div>
         <div id="qe-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- K2 MARKING SCHEME EDITOR (Block-based) -->
+  <div id="k2-editor" class="hidden">
+    <div class="max-w-7xl mx-auto px-4 py-5">
+      <!-- Header -->
+      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex items-center gap-3 flex-wrap">
+        <button onclick="k2CloseEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Papers</button>
+        <div class="h-4 w-px bg-slate-200"></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-700" id="k2e-title">K2 Marking Scheme</div>
+          <div class="text-xs text-slate-400" id="k2e-subtitle"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400" id="k2e-count">0 soalan</span>
+          <button id="k2e-save-btn" onclick="k2SaveMarking()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Save</button>
+        </div>
+      </div>
+
+      <!-- Import JSON Panel -->
+      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+        <div class="font-semibold text-slate-700 text-sm mb-2">📋 Paste Marking Scheme JSON from Gemini</div>
+        <textarea id="k2-import-input" class="field text-xs font-mono w-full" rows="4" placeholder='Paste JSON here...{"parts":[...]}'></textarea>
+        <div class="flex gap-2 mt-2">
+          <button onclick="k2AnalyzeJSON()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">🔍 Analyze</button>
+          <span id="k2-import-status" class="text-xs text-slate-400 flex items-center"></span>
+        </div>
+        <div id="k2-import-error" class="text-xs text-red-500 mt-2 hidden"></div>
+      </div>
+
+      <!-- Main Editor Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <!-- LEFT: Questions List (sticky) -->
+        <div class="lg:col-span-1">
+          <div class="bg-white rounded-xl border border-slate-200 p-4 lg:sticky lg:top-4">
+            <div class="font-semibold text-slate-700 text-sm mb-3">Soalan</div>
+            <div id="k2-questions-list" class="space-y-1.5 max-h-screen overflow-y-auto"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Editor (3 columns) -->
+        <div class="lg:col-span-3">
+          <div id="k2-editor-content" class="space-y-3"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -210,19 +307,85 @@
 
   <!-- ORDERS TAB -->
   <div id="sec-orders" class="hidden max-w-5xl mx-auto px-4 py-5">
-    <div class="font-semibold text-slate-700 mb-4">Orders</div>
-    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <table class="w-full text-sm">
+    <div class="flex items-center justify-between mb-4">
+      <div class="font-semibold text-slate-700">Orders</div>
+      <select id="order-filter" class="field w-auto text-xs" onchange="loadOrders()">
+        <option value="">Semua</option>
+        <option value="pending">Pending</option>
+        <option value="paid">Paid</option>
+        <option value="shipped">Shipped</option>
+      </select>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm min-w-max">
         <thead class="bg-slate-50 border-b border-slate-200">
           <tr class="text-xs text-slate-500 uppercase">
-            <th class="px-4 py-3 text-left">Date</th><th class="px-4 py-3 text-left">Name</th>
-            <th class="px-4 py-3 text-left">Phone</th><th class="px-4 py-3 text-left">Items</th>
-            <th class="px-4 py-3 text-left">Total</th><th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Date</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">Phone</th>
+            <th class="px-4 py-3 text-left">Address</th>
+            <th class="px-4 py-3 text-left">Items</th>
+            <th class="px-4 py-3 text-left">Total</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Tindakan</th>
           </tr>
         </thead>
         <tbody id="orders-body" class="divide-y divide-slate-100"></tbody>
       </table>
       <div id="orders-empty" class="text-center text-slate-400 py-12 text-sm">No orders yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRICING TAB -->
+<div id="sec-pricing" class="hidden max-w-4xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="font-bold text-slate-700">⚙️ Tetapan Harga</h2>
+    <button onclick="savePricing(event)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Simpan</button>
+  </div>
+
+  <!-- Per-subject prices -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-5">
+    <div class="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-600 bg-slate-50">Harga Per Subjek</div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100">
+            <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Subjek</th>
+            <th class="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-center">Papers sahaja (RM)</th>
+            <th class="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-center">Papers + Nota (RM)</th>
+          </tr>
+        </thead>
+        <tbody id="pricing-subj-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bundle / special prices -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="text-sm font-semibold text-slate-600 mb-4">Harga Bundle & Lain-lain</div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1.5">Collection (setiap set)</label>
+        <div class="flex items-center gap-1.5">
+          <span class="text-sm text-slate-400">RM</span>
+          <input type="number" step="0.01" id="price-coll-item" class="field w-24" value="1.99">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1.5">Core 5 (BM+BI+Math+Sejarah+Sains)</label>
+        <div class="flex items-center gap-1.5">
+          <span class="text-sm text-slate-400">RM</span>
+          <input type="number" step="0.01" id="price-core5" class="field w-24" value="69.00">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1.5">All Access (Semua Subjek Papers+Nota)</label>
+        <div class="flex items-center gap-1.5">
+          <span class="text-sm text-slate-400">RM</span>
+          <input type="number" step="0.01" id="price-all-access" class="field w-24" value="149.00">
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -244,6 +407,70 @@
 </div>
 
 <!-- PDF VIEWER MODAL (for admin preview) -->
+<div id="import-k1-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeImportK1JSON()">
+  <div class="modal-box p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-bold text-slate-800 text-sm">📋 Import K1 JSON dari Gemini</div>
+      <button onclick="closeImportK1JSON()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Paste output JSON dari Gemini. Soalan sedia ada akan <strong>digantikan</strong>.</p>
+    <textarea id="import-k1-input" rows="12" class="w-full border border-slate-200 rounded-xl p-3 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder='[{"no":1,"q":"Soalan...","a":"...","b":"...","c":"...","d":"...","answer":"A","explanation":"..."}]'></textarea>
+    <div id="import-k1-error" class="text-xs text-red-500 mt-2 hidden"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="closeImportK1JSON()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl transition">Batal</button>
+      <button onclick="doImportK1JSON()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-xl transition">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="import-k1-exp-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeImportK1Exp()">
+  <div class="modal-box p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-bold text-slate-800 text-sm">💬 Import 解释 (三语) dari Gemini</div>
+      <button onclick="closeImportK1Exp()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Paste JSON penjelasan dari Gemini. Hanya medan <strong>explanation / explanationCN / explanationEN</strong> akan dikemaskini — soalan &amp; pilihan jawapan tidak disentuh.</p>
+    <textarea id="import-k1-exp-input" rows="12" class="w-full border border-slate-200 rounded-xl p-3 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder='[{"no":1,"explanation":"Jawapan betul ialah...","explanationCN":"正确答案是...","explanationEN":"The correct answer is..."}]'></textarea>
+    <div id="import-k1-exp-error" class="text-xs text-red-500 mt-2 hidden"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="closeImportK1Exp()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl transition">Batal</button>
+      <button onclick="doImportK1Exp()" class="text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="import-json-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeImportJSON()">
+  <div class="modal-box p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-bold text-slate-800 text-sm">📋 Import JSON dari Gemini</div>
+      <button onclick="closeImportJSON()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Paste JSON dari Gemini. <strong>Tiada jawapan</strong> → import sebagai soalan (ganti semua). <strong>Ada jawapan</strong> → gabung ke soalan sedia ada ikut nombor.</p>
+    <textarea id="import-json-input" rows="12" class="w-full border border-slate-200 rounded-xl p-3 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder='[{"no":1,"q":"","parts":[...]}]'></textarea>
+    <div id="import-json-error" class="text-xs text-red-500 mt-2 hidden"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="closeImportJSON()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl transition">Batal</button>
+      <button onclick="doImportJSON()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-xl transition">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="import-qa-tips-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeImportQATips()">
+  <div class="modal-box p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-bold text-slate-800 text-sm">💬 Import Tips K2 (三语) dari Gemini</div>
+      <button onclick="closeImportQATips()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Paste JSON tips dari Gemini. Hanya medan <strong>tip / tipCN / tipEN</strong> dikemaskini — soalan &amp; jawapan tidak disentuh.</p>
+    <textarea id="import-qa-tips-input" rows="12" class="w-full border border-slate-200 rounded-xl p-3 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder='[{"no":1,"parts":[{"tip":"Soalan ini...","tipCN":"这题...","tipEN":"This question..."}]}]'></textarea>
+    <div id="import-qa-tips-error" class="text-xs text-red-500 mt-2 hidden"></div>
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="closeImportQATips()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl transition">Batal</button>
+      <button onclick="doImportQATips()" class="text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition">✅ Import</button>
+    </div>
+  </div>
+</div>
+
 <div id="pdf-modal" class="hidden modal-overlay" onclick="if(event.target===this)closePdfModal()">
   <div class="bg-white rounded-2xl w-full max-w-4xl" style="height:85vh;display:flex;flex-direction:column;">
     <div class="p-4 border-b flex items-center justify-between shrink-0">
@@ -261,6 +488,8 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signO
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, arrayUnion, arrayRemove }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadString, getDownloadURL }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
@@ -274,12 +503,75 @@ const firebaseConfig = {
 const ADMIN_EMAIL = 'sgece88@gmail.com';
 const SUBJECTS = ['BM','BI','Math','Add Math','Sejarah','Biology','Chemistry','Physics','P.Islam','Moral','Sains','Ekonomi','P.Akaun','Geografi'];
 
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
+const app      = initializeApp(firebaseConfig);
+const auth     = getAuth(app);
+const db       = getFirestore(app);
+const storage  = getStorage(app);
+
+// Compress a base64 image to max 900px wide, JPEG 72% quality before uploading.
+function compressImg(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 900;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// Compress then upload base64 image to Firebase Storage, return download URL.
+// If already a https URL, returns as-is.
+async function uploadImgIfNeeded(dataUrlOrUrl, path) {
+  if (!dataUrlOrUrl || !dataUrlOrUrl.startsWith('data:')) return dataUrlOrUrl || '';
+  const compressed = await compressImg(dataUrlOrUrl);
+  const storageRef = ref(storage, path);
+  await uploadString(storageRef, compressed, 'data_url');
+  return await getDownloadURL(storageRef);
+}
+
+// Upload all base64 images in a questions array to Storage.
+async function uploadQuestionImgs(questions, prefix) {
+  return Promise.all(questions.map(async (q, i) => {
+    const fields = ['qImg','aImg','bImg','cImg','dImg'];
+    const updates = {};
+    for (const f of fields) {
+      if (q[f]) updates[f] = await uploadImgIfNeeded(q[f], `${prefix}/${i}-${f}`);
+    }
+    // qImgs array (K2)
+    if (q.qImgs?.length) {
+      updates.qImgs = await Promise.all(q.qImgs.map((img,j) => uploadImgIfNeeded(img, `${prefix}/${i}-qImg-${j}`)));
+    }
+    // sub-parts
+    if (q.parts?.length) {
+      updates.parts = await Promise.all(q.parts.map(async (p,j) => {
+        const pImgs = p.qImgs?.length
+          ? await Promise.all(p.qImgs.map((img,k) => uploadImgIfNeeded(img, `${prefix}/${i}-part${j}-img${k}`)))
+          : [];
+        return { ...p, qImgs: pImgs };
+      }));
+    }
+    return { ...q, ...updates };
+  }));
+}
 
 let currentUser = null;
 let currentTab  = 'papers';
+
+window.showFileName = (input, spanId) => {
+  const el = document.getElementById(spanId);
+  if (el) el.textContent = input.files[0]?.name || '';
+};
+
+function draftKey(type, cid, slot) { return `allite-draft-${type}-${cid}${slot?'-'+slot:''}`; }
+function saveDraft(type, cid, slot, qs) { try { localStorage.setItem(draftKey(type,cid,slot), JSON.stringify(qs)); } catch(e){} }
+function loadDraft(type, cid, slot) { try { return JSON.parse(localStorage.getItem(draftKey(type,cid,slot))||'null'); } catch(e){ return null; } }
+function clearDraft(type, cid, slot) { localStorage.removeItem(draftKey(type,cid,slot)); }
 const TYPE_MAP = { papers:'paper', notes:'note', collection:'collection', books:'book' };
 let editingId   = null;
 let editingData = null;
@@ -293,6 +585,8 @@ let qeQuestions  = [];
 let qeExpanded   = null;
 let extractionImages = [], extractionFailedBatches = [], extractionKey = '';
 let qaExtractionImages = [], qaExtractionFailedBatches = [], qaExtractionKey = '';
+let qeContentLang  = 'bm';
+let qaeContentLang = 'bm';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -324,14 +618,68 @@ onAuthStateChanged(auth, user => {
 
 // ── TABS ──────────────────────────────────────────────────────────
 window.mainTab = (tab) => {
-  ['content','members','orders'].forEach(t => {
+  ['content','members','orders','pricing'].forEach(t => {
     document.getElementById('sec-'+t).classList.toggle('hidden', t!==tab);
     const btn = document.getElementById('mt-'+t);
     btn.className = t===tab ? 'tab-active px-4 py-3 text-sm transition' : 'tab-idle px-4 py-3 text-sm transition';
   });
   if (tab==='members') loadMembers();
   if (tab==='orders')  loadOrders();
+  if (tab==='pricing') loadPricing();
 };
+
+// ── PRICING ───────────────────────────────────────────────────────
+async function loadPricing() {
+  const snap = await getDoc(doc(db, 'config', 'pricing'));
+  const data = snap.exists() ? snap.data() : {};
+  const subj = data.subjects || {};
+  document.getElementById('pricing-subj-body').innerHTML = SUBJECTS.map(s => {
+    const sp = subj[s] || { papers: 1490, bundle: 2290 };
+    return `<tr class="border-t border-slate-100">
+      <td class="px-4 py-2.5 text-sm font-medium text-slate-700">${s}</td>
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-1 justify-center">
+          <span class="text-xs text-slate-400">RM</span>
+          <input type="number" step="0.01" value="${(sp.papers/100).toFixed(2)}"
+            data-subj="${s}" data-type="papers" class="field w-20 text-center text-xs py-1">
+        </div>
+      </td>
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-1 justify-center">
+          <span class="text-xs text-slate-400">RM</span>
+          <input type="number" step="0.01" value="${(sp.bundle/100).toFixed(2)}"
+            data-subj="${s}" data-type="bundle" class="field w-20 text-center text-xs py-1">
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  if (data.collItem)  document.getElementById('price-coll-item').value  = (data.collItem/100).toFixed(2);
+  if (data.core5)     document.getElementById('price-core5').value      = (data.core5/100).toFixed(2);
+  if (data.allAccess) document.getElementById('price-all-access').value = (data.allAccess/100).toFixed(2);
+}
+
+async function savePricing(e) {
+  const btn = e.currentTarget;
+  btn.textContent = 'Menyimpan...'; btn.disabled = true;
+  const subjects = {};
+  SUBJECTS.forEach(s => {
+    const p = document.querySelector(`input[data-subj="${s}"][data-type="papers"]`);
+    const b = document.querySelector(`input[data-subj="${s}"][data-type="bundle"]`);
+    if (p && b) subjects[s] = {
+      papers: Math.round(parseFloat(p.value) * 100),
+      bundle: Math.round(parseFloat(b.value) * 100),
+    };
+  });
+  await setDoc(doc(db, 'config', 'pricing'), {
+    subjects,
+    collItem:  Math.round(parseFloat(document.getElementById('price-coll-item').value)  * 100),
+    core5:     Math.round(parseFloat(document.getElementById('price-core5').value)      * 100),
+    allAccess: Math.round(parseFloat(document.getElementById('price-all-access').value) * 100),
+    updatedAt: serverTimestamp(),
+  });
+  btn.textContent = '✅ Tersimpan';
+  setTimeout(() => { btn.textContent = '💾 Simpan'; btn.disabled = false; }, 2000);
+}
 
 window.subTab = (tab) => {
   currentTab = tab;
@@ -385,6 +733,14 @@ function renderPaperRow(d) {
         🎯 ${lbl}${hasQuiz ? ' ✓' : ' (setup)'}
       </button>`;
     }
+    if (slot.type === 'marking') {
+      const hasMarking = !!slot.markingId;
+      return `<button onclick="openK2MarkingEditor('${d.id}','${key}','${slot.markingId||''}')"
+        class="text-xs px-2.5 py-1 rounded-lg font-semibold transition
+        ${hasMarking ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
+        📋 ${lbl}${hasMarking ? ' ✓' : ' (setup)'}
+      </button>`;
+    }
     if (slot.type === 'pdf') {
       return `<span onclick="previewPdf('${escAttr(slot.url||'')}','${lbl}')"
         class="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 cursor-pointer hover:bg-green-200 transition">📄 ${lbl}</span>`;
@@ -409,7 +765,13 @@ function renderPaperRow(d) {
       <div class="flex-1 min-w-0">
         <div class="font-semibold text-slate-700 text-sm">${d.title||'Untitled'}</div>
         <div class="text-xs text-slate-400 mt-0.5">${d.subject||''} · ${d.year||''}</div>
-        <div class="flex flex-wrap gap-1.5 mt-2">${slotBtns} ${jawBadge}</div>
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          ${slotBtns} ${jawBadge}
+          <button onclick="openQAEditor('${d.id}','${d.qaId||''}')"
+            class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
+            📝 K2${d.qaId ? ' ✓' : ' (setup)'}
+          </button>
+        </div>
       </div>
       <div class="flex items-center gap-2 shrink-0 flex-wrap">
         ${accessBadge} ${statusBadge}
@@ -432,10 +794,10 @@ function renderGenericRow(d) {
     : `<div class="w-10 h-10 bg-slate-100 rounded-lg mr-3 shrink-0 flex items-center justify-center text-slate-300 text-lg">${currentTab==='books'?'📚':'📄'}</div>`;
   const meta = `<span class="text-slate-400">${d.subject||''} ${d.year?'· '+d.year:''} ${d.kertas?'· K'+d.kertas:''}</span>`;
 
-  const qaBtn = currentTab === 'notes'
+  const qaBtn = (currentTab === 'notes' || currentTab === 'papers')
     ? `<button onclick="openQAEditor('${d.id}','${(d.qaId||'')}')"
         class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
-        📝 ${d.qaId ? 'Q&A ✓' : 'Q&A (setup)'}
+        📝 ${d.qaId ? 'K2 ✓' : 'K2 (setup)'}
       </button>`
     : '';
   return `<div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 hover:border-indigo-200 transition">
@@ -485,25 +847,37 @@ function buildPaperForm(d) {
     const slot = slots[key] || { type:'none' };
     const isQuiz = slot.type === 'quiz';
     const isPdf  = slot.type === 'pdf';
+    const isMarking = slot.type === 'marking';
     const quizNote = isQuiz && slot.quizId
       ? `<span class="text-xs text-indigo-600">✅ Quiz tersedia — edit soalan selepas save</span>`
       : isQuiz
         ? `<span class="text-xs text-amber-600">📝 Quiz baru — edit soalan selepas save</span>`
         : '';
+    const markingNote = isMarking && slot.markingId
+      ? `<span class="text-xs text-green-600">✅ Marking tersedia — edit selepas save</span>`
+      : isMarking
+        ? `<span class="text-xs text-amber-600">📝 Marking baru — edit selepas save</span>`
+        : '';
     return `
-    <div class="slot-row ${isQuiz?'has-quiz':''} ${isPdf?'has-pdf':''}" id="slot-${key}">
+    <div class="slot-row ${isQuiz?'has-quiz':''} ${isMarking?'has-marking':''} ${isPdf?'has-pdf':''}" id="slot-${key}">
       <div class="flex items-center gap-4 flex-wrap">
         <span class="text-xs font-bold text-slate-600 w-10 shrink-0">${label}</span>
         <label class="flex items-center gap-1.5 text-xs cursor-pointer">
-          <input type="radio" name="slot-${key}" value="none" ${!isQuiz&&!isPdf?'checked':''} onchange="toggleSlot('${key}','none')"> Tiada
+          <input type="radio" name="slot-${key}" value="none" ${!isQuiz&&!isMarking&&!isPdf?'checked':''} onchange="toggleSlot('${key}','none')"> Tiada
         </label>
+        ${key === 'k2' ? `
+        <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+          <input type="radio" name="slot-${key}" value="marking" ${isMarking?'checked':''} onchange="toggleSlot('${key}','marking')"> 📋 Marking
+        </label>
+        ` : `
         <label class="flex items-center gap-1.5 text-xs cursor-pointer">
           <input type="radio" name="slot-${key}" value="quiz" ${isQuiz?'checked':''} onchange="toggleSlot('${key}','quiz')"> 🎯 Quiz
         </label>
+        `}
         <label class="flex items-center gap-1.5 text-xs cursor-pointer">
           <input type="radio" name="slot-${key}" value="pdf" ${isPdf?'checked':''} onchange="toggleSlot('${key}','pdf')"> 📄 PDF
         </label>
-        ${quizNote}
+        ${quizNote}${markingNote}
       </div>
       <div id="slot-${key}-pdf" class="${isPdf?'mt-2':'hidden mt-2'}">
         <input class="field text-xs" type="text" id="slot-${key}-url"
@@ -523,9 +897,19 @@ function buildPaperForm(d) {
         <select class="field" id="f-subject"><option value="">Select...</option>${subjectOpts}</select>
       </div>
     </div>
-    <div>
-      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Year</label>
-      <input class="field" type="number" id="f-year" value="${d.year||new Date().getFullYear()}" style="max-width:120px">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Year</label>
+        <input class="field" type="number" id="f-year" value="${d.year||new Date().getFullYear()}" style="max-width:120px">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Language</label>
+        <select class="field" id="f-lang">
+          <option value="bm"         ${(d.lang||'bm')==='bm'        ?'selected':''}>BM Sahaja</option>
+          <option value="en"         ${d.lang==='en'                 ?'selected':''}>English Only</option>
+          <option value="bilingual"  ${d.lang==='bilingual'          ?'selected':''}>🌐 Bilingual (BM + EN)</option>
+        </select>
+      </div>
     </div>
 
     <div>
@@ -576,8 +960,9 @@ window.toggleSlot = (key, type) => {
   if (quizDiv) quizDiv.classList.toggle('hidden', type !== 'quiz');
   if (quizDiv) quizDiv.classList.toggle('mt-2',   type === 'quiz');
   if (row) {
-    row.classList.remove('has-quiz','has-pdf');
+    row.classList.remove('has-quiz','has-marking','has-pdf');
     if (type==='quiz') row.classList.add('has-quiz');
+    if (type==='marking') row.classList.add('has-marking');
     if (type==='pdf')  row.classList.add('has-pdf');
   }
 };
@@ -613,15 +998,24 @@ function buildGenericForm(d) {
       <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Title *</label>
       <input class="field" type="text" id="f-title" value="${escAttr(d.title||'')}">
     </div>
-    ${isBook ? `<div><label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Description</label>
-      <textarea class="field" rows="3" id="f-description">${d.description||''}</textarea></div>` : ''}
+    ${isBook || isPaperNote ? `<div><label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Description</label>
+      <textarea class="field" rows="2" id="f-description" placeholder="Ringkasan kandungan nota...">${d.description||''}</textarea></div>` : ''}
+    ${isColl ? `
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Preview URL <span class="text-slate-400 font-normal normal-case">(30 muka surat pertama — percuma)</span></label>
+      <input class="field text-xs" type="text" id="f-previewUrl" placeholder="https://drive.google.com/file/d/...preview..." value="${escAttr(d.previewUrl||'')}">
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Full URL <span class="text-slate-400 font-normal normal-case">(PDF penuh — selepas bayar)</span></label>
+      <input class="field text-xs" type="text" id="f-url" placeholder="https://drive.google.com/file/d/...full..." value="${escAttr(d.url||'')}">
+    </div>` : `
     <div>
       <label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Drive URL</label>
       <input class="field" type="text" id="f-url" placeholder="https://drive.google.com/file/d/..." value="${escAttr(d.url||'')}">
-    </div>
+    </div>`}
     ${isColl||isBook ? `<div><label class="text-xs font-semibold text-slate-500 uppercase block mb-1">Price (RM)</label>
       <input class="field" type="number" step="0.01" id="f-price" value="${d.price||1.99}"></div>` : ''}
-    ${isBook||isColl ? imgSection : ''}
+    ${isBook || isColl || isPaperNote ? imgSection : ''}
     <div class="grid grid-cols-2 gap-4 pt-1">
       <div>
         <div class="text-xs font-semibold text-slate-500 uppercase mb-2">Access</div>
@@ -655,6 +1049,7 @@ window.saveContent = async () => {
     year:     parseInt(get('f-year')?.value) || null,
     title:    get('f-title')?.value.trim() || '',
     description: get('f-description')?.value || '',
+    previewUrl: get('f-previewUrl')?.value.trim() || '',
     url:      get('f-url')?.value.trim() || '',
     imageUrl: get('f-imageUrl')?.value || '',
     price:    parseFloat(get('f-price')?.value) || 0,
@@ -682,6 +1077,9 @@ async function savePaperContent() {
     } else if (type === 'quiz') {
       const existingQuizId = editingData?.slots?.[key]?.quizId || '';
       slots[key] = { type:'quiz', quizId: existingQuizId };
+    } else if (type === 'marking') {
+      const existingMarkingId = editingData?.slots?.[key]?.markingId || '';
+      slots[key] = { type:'marking', markingId: existingMarkingId };
     }
   }
   const jawUrl = get('f-jaw')?.value.trim() || '';
@@ -692,6 +1090,7 @@ async function savePaperContent() {
     title:   get('f-title')?.value.trim() || '',
     subject: get('f-subject')?.value || '',
     year:    parseInt(get('f-year')?.value) || null,
+    lang:    get('f-lang')?.value || 'bm',
     slots,
     access:  document.querySelector('input[name="r-access"]:checked')?.value || 'free',
     active:  get('f-active')?.checked ?? true,
@@ -754,11 +1153,19 @@ window.openQuizEditor = async (contentId, slotKey, quizId) => {
     if (snap.exists()) qeQuestions = snap.data().questions || [];
   }
 
+  const draft = loadDraft('quiz', contentId, slotKey);
+  if (draft?.length > 0 && draft.length >= qeQuestions.length) {
+    if (confirm(`Dijumpai ${draft.length} soalan draft (belum disave). Pulihkan?`)) {
+      qeQuestions = draft;
+    }
+  }
+
   const contentSnap = await getDoc(doc(db,'content',contentId));
   const cd = contentSnap.exists() ? contentSnap.data() : {};
   const slotLabel = { k1:'K1', k2:'K2', k12:'K1&2', view:'View' }[slotKey] || slotKey;
+  qeContentLang = cd.lang || 'bm';
   document.getElementById('qe-title').textContent = `${cd.title||'Paper'} — ${slotLabel} Quiz`;
-  document.getElementById('qe-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}`;
+  document.getElementById('qe-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}${qeContentLang==='bilingual'?' · 🌐 Bilingual':''}`;
   document.getElementById('gemini-key-input').value = localStorage.getItem('allite_gkey') || '';
   document.getElementById('extract-log').classList.add('hidden');
   document.getElementById('extract-log').innerHTML = '';
@@ -778,8 +1185,12 @@ window.closeQuizEditor = () => {
 window.saveQuiz = async () => {
   if (!qeContentId || !qeSlotKey) return;
   const btn = document.getElementById('qe-save-btn');
-  btn.textContent = 'Saving...'; btn.disabled = true;
+  btn.textContent = 'Uploading...'; btn.disabled = true;
   try {
+    const prefix = `quiz-imgs/${qeContentId}-${qeSlotKey}`;
+    const uploaded = await uploadQuestionImgs(qeQuestions, prefix);
+    qeQuestions = uploaded;
+    btn.textContent = 'Saving...';
     if (qeQuizId) {
       await updateDoc(doc(db,'quizzes',qeQuizId), { questions: qeQuestions, updatedAt: serverTimestamp() });
     } else {
@@ -789,6 +1200,7 @@ window.saveQuiz = async () => {
       qeQuizId = ref.id;
       await updateDoc(doc(db,'content',qeContentId), { [`slots.${qeSlotKey}.quizId`]: qeQuizId });
     }
+    clearDraft('quiz', qeContentId, qeSlotKey);
     btn.textContent = '✅ Saved!';
     setTimeout(() => { btn.textContent = '💾 Save Quiz'; btn.disabled = false; }, 2000);
     renderQeList();
@@ -809,7 +1221,8 @@ function renderQeList() {
     list.innerHTML = '<div class="text-center text-slate-400 py-10 text-sm">Tiada soalan. Upload PDF atau klik + Tambah Soalan.</div>';
     return;
   }
-  list.innerHTML = qeQuestions.map((q,i) => renderQCard(q,i)).join('');
+  const insertDiv = (i) => `<div class="flex justify-center my-1"><button onclick="insertQuestion(${i})" class="text-xs text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 px-3 py-0.5 rounded-full transition border border-dashed border-slate-200 hover:border-indigo-300">+ sisip</button></div>`;
+  list.innerHTML = qeQuestions.map((q,i) => renderQCard(q,i) + insertDiv(i)).join('');
 }
 
 function renderQCard(q, i) {
@@ -833,16 +1246,20 @@ function renderQCard(q, i) {
 
 function renderQCardBody(q, i) {
   const ao = ['A','B','C','D'].map(l=>`<option ${q.answer===l?'selected':''}>${l}</option>`).join('');
+  const bil = qeContentLang === 'bilingual' || !!(q.qEN || q.aEN);
   return `<div class="q-body space-y-2 pt-2">
     <div>
-      <div class="text-xs font-semibold text-slate-400 mb-1">Soalan</div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Soalan ${bil?'(BM)':''}</div>
       <textarea class="field text-sm" rows="3" oninput="qeSet(${i},'q',this.value)">${escHtml(q.q||'')}</textarea>
+      ${bil?`<div class="text-xs font-semibold text-slate-400 mb-1 mt-1">Question (EN)</div>
+      <textarea class="field text-sm" rows="3" oninput="qeSet(${i},'qEN',this.value)">${escHtml(q.qEN||'')}</textarea>`:''}
     </div>
     ${['a','b','c','d'].map(l=>`
     <div>
       <div class="flex gap-2 items-center">
         <span class="text-xs font-bold text-indigo-400 w-4 shrink-0">${l.toUpperCase()}</span>
-        <input class="field text-sm flex-1" type="text" value="${escAttr(q[l]||'')}" oninput="qeSet(${i},'${l}',this.value)">
+        <input class="field text-sm flex-1" type="text" value="${escAttr(q[l]||'')}" placeholder="${bil?'BM':''}" oninput="qeSet(${i},'${l}',this.value)">
+        ${bil?`<input class="field text-sm flex-1" type="text" value="${escAttr(q[l+'EN']||'')}" placeholder="EN" oninput="qeSet(${i},'${l}EN',this.value)">`:``}
         <button onclick="triggerOptImg(${i},'${l}')" title="Gambar pilihan ${l.toUpperCase()}" class="shrink-0 text-indigo-400 hover:text-indigo-600 px-1.5 py-1 rounded text-sm hover:bg-indigo-50 transition border border-indigo-200">🖼</button>
         <input type="file" accept="image/*" class="hidden" id="optimg-${i}-${l}" onchange="fileOptImg(this,${i},'${l}')">
       </div>
@@ -873,6 +1290,14 @@ function renderQCardBody(q, i) {
         </select>
       </div>
     </div>
+    <div class="border-t border-slate-100 pt-2 mt-1 space-y-2">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Penjelasan BM</div>
+      <textarea class="field text-sm" rows="2" placeholder="Jawapan betul ialah X kerana..." oninput="qeSet(${i},'explanation',this.value)">${escHtml(q.explanation||'')}</textarea>
+      <div class="text-xs font-semibold text-slate-400 mb-1">解释（中文）</div>
+      <textarea class="field text-sm" rows="2" placeholder="正确答案是X，因为..." oninput="qeSet(${i},'explanationCN',this.value)">${escHtml(q.explanationCN||'')}</textarea>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Explanation (English)</div>
+      <textarea class="field text-sm" rows="2" placeholder="The correct answer is X because..." oninput="qeSet(${i},'explanationEN',this.value)">${escHtml(q.explanationEN||'')}</textarea>
+    </div>
     <div>
       <div class="text-xs font-semibold text-slate-400 mb-1">Gambar soalan (paste / drag / klik)</div>
       ${q.qImg ? `<div class="mb-2"><img src="${q.qImg}" class="max-h-32 rounded-lg border border-slate-200">
@@ -893,10 +1318,115 @@ window.qeDel = (i) => {
   qeQuestions.splice(i,1); qeExpanded=null; renderQeList();
 };
 window.addQuestion = () => {
-  qeQuestions.push({ no:qeQuestions.length+1, q:'', a:'', b:'', c:'', d:'', answer:'A', qImg:'', explanation:'', memoryTrick:'', form:'', bab:'' });
+  qeQuestions.push({ no:qeQuestions.length+1, q:'', a:'', b:'', c:'', d:'', answer:'A', qImg:'', explanation:'', explanationCN:'', explanationEN:'', memoryTrick:'', form:'', bab:'' });
   qeExpanded = qeQuestions.length-1; renderQeList();
   setTimeout(() => document.getElementById(`qc-${qeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 80);
 };
+
+window.openImportK1JSON = () => {
+  document.getElementById('import-k1-input').value = '';
+  document.getElementById('import-k1-error').classList.add('hidden');
+  document.getElementById('import-k1-modal').classList.remove('hidden');
+};
+window.closeImportK1JSON = () => {
+  document.getElementById('import-k1-modal').classList.add('hidden');
+};
+window.doImportK1JSON = () => {
+  const raw = cleanGeminiOutput(document.getElementById('import-k1-input').value);
+  const errEl = document.getElementById('import-k1-error');
+  errEl.classList.add('hidden');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) {
+    errEl.textContent = 'JSON tidak sah: ' + e.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    errEl.textContent = 'Perlu array soalan [ {...}, ... ]';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const existingK1ByNo = {};
+  qeQuestions.forEach((q, i) => { existingK1ByNo[q.no ?? i + 1] = q; });
+  const importedK1ByNo = {};
+  parsed.forEach((src, i) => { importedK1ByNo[src.no ?? i + 1] = src; });
+  const allK1Nos = [...new Set([
+    ...qeQuestions.map((q, i) => q.no ?? i + 1),
+    ...parsed.map((src, i) => src.no ?? i + 1)
+  ])].sort((a, b) => a - b);
+  qeQuestions = allK1Nos.map(no => {
+    const ex  = existingK1ByNo[no] ?? {};
+    const src = importedK1ByNo[no];
+    if (!src) return ex;
+    return {
+      no,
+      q:             src.q   ?? ex.q   ?? '',
+      qEN:           src.qEN ?? ex.qEN ?? '',
+      a:             src.a   ?? ex.a   ?? '',
+      b:             src.b   ?? ex.b   ?? '',
+      c:             src.c   ?? ex.c   ?? '',
+      d:             src.d   ?? ex.d   ?? '',
+      aEN:           src.aEN ?? ex.aEN ?? '',
+      bEN:           src.bEN ?? ex.bEN ?? '',
+      cEN:           src.cEN ?? ex.cEN ?? '',
+      dEN:           src.dEN ?? ex.dEN ?? '',
+      answer:        ['A','B','C','D'].includes((src.answer||'').toUpperCase()) ? src.answer.toUpperCase() : (ex.answer ?? 'A'),
+      qImg:          ex.qImg          ?? '',
+      explanation:   src.explanation   || ex.explanation   || '',
+      explanationCN: src.explanationCN || ex.explanationCN || '',
+      explanationEN: src.explanationEN || ex.explanationEN || '',
+      memoryTrick:   src.memoryTrick   || ex.memoryTrick   || '',
+      form:          ex.form           ?? '',
+      bab:           ex.bab            ?? '',
+    };
+  });
+  qeExpanded = null;
+  renderQeList();
+  closeImportK1JSON();
+  document.getElementById('qe-list').scrollIntoView({behavior:'smooth', block:'start'});
+};
+window.openImportK1Exp = () => {
+  document.getElementById('import-k1-exp-input').value = '';
+  document.getElementById('import-k1-exp-error').classList.add('hidden');
+  document.getElementById('import-k1-exp-modal').classList.remove('hidden');
+};
+window.closeImportK1Exp = () => {
+  document.getElementById('import-k1-exp-modal').classList.add('hidden');
+};
+window.doImportK1Exp = () => {
+  const raw = cleanGeminiOutput(document.getElementById('import-k1-exp-input').value);
+  const errEl = document.getElementById('import-k1-exp-error');
+  errEl.classList.add('hidden');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) {
+    errEl.textContent = 'JSON tidak sah: ' + e.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!Array.isArray(parsed) || !parsed.length) {
+    errEl.textContent = 'Perlu array [ {...}, ... ]';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const byNo = {};
+  qeQuestions.forEach((q, i) => { byNo[q.no ?? i + 1] = i; });
+  let updated = 0;
+  parsed.forEach((src, si) => {
+    const no = src.no ?? si + 1;
+    const idx = byNo[no];
+    if (idx === undefined) return;
+    if (src.explanation   !== undefined) qeQuestions[idx].explanation   = src.explanation;
+    if (src.explanationCN !== undefined) qeQuestions[idx].explanationCN = src.explanationCN;
+    if (src.explanationEN !== undefined) qeQuestions[idx].explanationEN = src.explanationEN;
+    updated++;
+  });
+  qeExpanded = null;
+  renderQeList();
+  closeImportK1Exp();
+  document.getElementById('qe-list').scrollIntoView({behavior:'smooth', block:'start'});
+  alert(`✅ ${updated} soalan dikemaskini penjelasannya.`);
+};
+
 window.triggerQImg   = (i)    => document.getElementById(`qimg-${i}`)?.click();
 window.fileQImg      = (inp,i) => { if(inp.files[0]) readQImg(inp.files[0],i); };
 window.dropQImg      = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) readQImg(f,i); };
@@ -923,16 +1453,41 @@ document.addEventListener('paste', e => {
 });
 
 // ── PDF EXTRACTION ─────────────────────────────────────────────────
+window.testGeminiKey = async (inputId) => {
+  const key = document.getElementById(inputId).value.trim();
+  const statusEl = document.getElementById(inputId + '-status');
+  if (!key) { statusEl.textContent = '⚠️ Masukkan key dulu'; statusEl.className='text-xs text-amber-500'; return; }
+  statusEl.textContent = '⏳ Testing...'; statusEl.className='text-xs text-slate-400';
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key.split(',')[0].trim()}`,
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({contents:[{parts:[{text:'hi'}]}]}) }
+    );
+    const data = await resp.json();
+    if (data.error) {
+      statusEl.textContent = `❌ ${data.error.message}`;
+      statusEl.className = 'text-xs text-red-500';
+    } else {
+      statusEl.textContent = '✅ Key OK!';
+      statusEl.className = 'text-xs text-green-600 font-semibold';
+    }
+  } catch(e) {
+    statusEl.textContent = `❌ ${e.message}`;
+    statusEl.className = 'text-xs text-red-500';
+  }
+};
+
 async function geminiRequest(keyInput, parts) {
   const keys = String(keyInput).split(',').map(k=>k.trim()).filter(Boolean);
   if (!keys.length) return { error: 'No API key provided' };
   let lastErr = '';
   for (let round=0; round<3; round++) {
-    if (round > 0) await new Promise(r => setTimeout(r, 12000));
+    if (round > 0) await new Promise(r => setTimeout(r, 50000));
     for (const key of keys) {
       try {
         const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
           { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts}]}) }
         );
         const result = await resp.json();
@@ -962,7 +1517,7 @@ Return ONLY a JSON array with this exact structure (no other text):
   "c": "option C text",
   "d": "option D text",
   "answer": "A",
-  "explanation": "2-3 sentences explaining why the correct answer is correct in SPM Sejarah context, and why the other options are wrong.",
+  "explanation": "2-3 sentences explaining why the correct answer is correct in SPM context, and why the other options are wrong.",
   "memoryTrick": "A fun 谐音梗, silly joke, acronym, or absurd story in Chinese or BM to help students remember the key fact. The more ridiculous, the more memorable."
 }]
 Include ALL questions found on these pages. Return ONLY the JSON array.`;
@@ -1000,7 +1555,7 @@ window.extractFromPdf = async (input) => {
   const images = [];
   for (let p=1; p<=pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const vp = page.getViewport({scale:2});
+    const vp = page.getViewport({scale:1.5});
     const canvas = document.createElement('canvas');
     canvas.width=vp.width; canvas.height=vp.height;
     await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
@@ -1029,8 +1584,8 @@ window.extractFromPdf = async (input) => {
       extractionFailedBatches.push({ pages, start: s });
       continue;
     }
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    const match = text.match(/\[[\s\S]*\]/);
+    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = raw.match(/\[[\s\S]*\]/);
     if (match) {
       try {
         const qs = JSON.parse(match[0]);
@@ -1055,9 +1610,10 @@ window.extractFromPdf = async (input) => {
     });
 
   qeQuestions = unique; qeExpanded = null; renderQeList();
+  saveDraft('quiz', qeContentId, qeSlotKey, qeQuestions);
   log(`🎉 Selesai — ${unique.length} soalan diekstrak.`, 'log-ok');
   if (extractionFailedBatches.length > 0) {
-    log(`⚠️ ${extractionFailedBatches.length} batch gagal — klik Retry untuk cuba semula sahaja batch yang gagal.`, 'log-err');
+    log(`⚠️ ${extractionFailedBatches.length} batch gagal — klik Retry.`, 'log-err');
     addRetryBtn(logEl, extractionFailedBatches.length, retryFailedBatches);
   }
   input.value = '';
@@ -1090,8 +1646,8 @@ window.retryFailedBatches = async () => {
       extractionFailedBatches.push({ pages, start });
       continue;
     }
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    const match = text.match(/\[[\s\S]*\]/);
+    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = raw.match(/\[[\s\S]*\]/);
     if (match) {
       try {
         const qs = JSON.parse(match[0]);
@@ -1099,8 +1655,7 @@ window.retryFailedBatches = async () => {
           const idx = qeQuestions.findIndex(e => e.no === q.no);
           const existing = idx >= 0 ? qeQuestions[idx] : {};
           const merged = { ...q, qImg: existing.qImg||'', aImg: existing.aImg||'', bImg: existing.bImg||'', cImg: existing.cImg||'', dImg: existing.dImg||'' };
-          if (idx >= 0) qeQuestions[idx] = merged;
-          else qeQuestions.push(merged);
+          if (idx >= 0) qeQuestions[idx] = merged; else qeQuestions.push(merged);
         }
         qeQuestions.sort((a,b)=>(a.no||0)-(b.no||0));
         renderQeList();
@@ -1115,12 +1670,81 @@ window.retryFailedBatches = async () => {
     }
   }
 
+  saveDraft('quiz', qeContentId, qeSlotKey, qeQuestions);
   if (extractionFailedBatches.length > 0) {
     log(`⚠️ Masih ${extractionFailedBatches.length} batch gagal.`, 'log-err');
     addRetryBtn(logEl, extractionFailedBatches.length, retryFailedBatches);
   } else {
     log(`🎉 Semua batch berjaya! Total ${qeQuestions.length} soalan.`, 'log-ok');
   }
+};
+
+// ── ANSWER KEY EXTRACTION ─────────────────────────────────────────
+window.extractAnswerKey = async (input) => {
+  if (!input.files[0]) return;
+  const key = document.getElementById('gemini-key-input').value.trim();
+  if (!key) { alert('Masukkan Gemini API key terlebih dahulu.'); return; }
+
+  const logEl = document.getElementById('anskey-log');
+  logEl.classList.remove('hidden'); logEl.innerHTML = '';
+  const log = (msg, cls='log-info') => {
+    const d = document.createElement('div'); d.className='log-line '+cls; d.textContent=msg;
+    logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  };
+
+  log('📄 Membaca fail...');
+  const file = input.files[0];
+  let images = [];
+
+  if (file.type === 'application/pdf') {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    for (let p=1; p<=pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({scale:1.5});
+      const canvas = document.createElement('canvas');
+      canvas.width=vp.width; canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      images.push(canvas.toDataURL('image/jpeg',0.85).split(',')[1]);
+    }
+  } else {
+    const base64 = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result.split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    images.push(base64);
+  }
+
+  log('🤖 Mengekstrak jawapan...');
+  const prompt = `This is an SPM exam answer key. Extract ALL answers as a JSON object mapping question number to answer letter.
+Return ONLY a JSON object like: {"1":"A","2":"C","3":"B","4":"D",...}
+Include every question number found. Return ONLY the JSON object, no other text.`;
+
+  const parts = [
+    { text: prompt },
+    ...images.map(img => ({ inline_data: { mime_type:'image/jpeg', data:img } }))
+  ];
+  const result = await geminiRequest(key, parts);
+  if (result.error) { log(`❌ ${result.error}`, 'log-err'); input.value=''; return; }
+
+  const raw = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) { log('❌ Tiada jawapan dijumpai dalam fail ini.', 'log-err'); input.value=''; return; }
+
+  let answerMap;
+  try { answerMap = JSON.parse(match[0]); }
+  catch { log('❌ JSON parse error.', 'log-err'); input.value=''; return; }
+
+  let updated = 0;
+  qeQuestions = qeQuestions.map(q => {
+    const ans = answerMap[String(q.no)];
+    if (ans) { updated++; return { ...q, answer: ans.toUpperCase() }; }
+    return q;
+  });
+  renderQeList();
+  log(`✅ ${updated} jawapan dipadankan dari ${Object.keys(answerMap).length} yang diekstrak.`, 'log-ok');
+  input.value = '';
 };
 
 // ── MEMBERS ───────────────────────────────────────────────────────
@@ -1178,18 +1802,277 @@ window.revokeSubject = async (uid, subject) => {
 
 // ── ORDERS ────────────────────────────────────────────────────────
 window.loadOrders = async () => {
-  const snap = await getDocs(query(collection(db,'orders'),orderBy('createdAt','desc')));
-  const orders = snap.docs.map(d=>({id:d.id,...d.data()}));
-  document.getElementById('orders-empty').classList.toggle('hidden', orders.length>0);
-  document.getElementById('orders-body').innerHTML = orders.map(o=>`
+  const filterVal = document.getElementById('order-filter')?.value || '';
+  let q = query(collection(db,'orders'), orderBy('createdAt','desc'));
+  const snap = await getDocs(q);
+  let orders = snap.docs.map(d=>({id:d.id,...d.data()}));
+  if (filterVal) orders = orders.filter(o => o.status === filterVal);
+  document.getElementById('orders-empty').classList.toggle('hidden', orders.length > 0);
+  const statusBadge = s => {
+    const map = { paid:'bg-green-100 text-green-700', shipped:'bg-blue-100 text-blue-700', pending:'bg-amber-100 text-amber-700', failed:'bg-red-100 text-red-600' };
+    return `<span class="text-xs px-2 py-0.5 rounded-full ${map[s]||map.pending}">${s||'pending'}</span>`;
+  };
+  document.getElementById('orders-body').innerHTML = orders.map(o => `
     <tr class="hover:bg-slate-50">
-      <td class="px-4 py-3 text-xs text-slate-400">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString():'-'}</td>
-      <td class="px-4 py-3 text-xs font-medium">${o.name||'-'}</td>
-      <td class="px-4 py-3 text-xs">${o.phone||'-'}</td>
-      <td class="px-4 py-3 text-xs text-slate-600 max-w-xs truncate">${(o.items||[]).map(i=>i.title||i).join(', ')||'-'}</td>
-      <td class="px-4 py-3 text-xs font-semibold">RM${(o.total||0).toFixed(2)}</td>
-      <td class="px-4 py-3"><span class="text-xs px-2 py-0.5 rounded-full ${o.status==='paid'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${o.status||'pending'}</span></td>
+      <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString('ms-MY'):'-'}</td>
+      <td class="px-4 py-3 text-xs font-medium whitespace-nowrap">${o.name||'-'}</td>
+      <td class="px-4 py-3 text-xs whitespace-nowrap">${o.phone||'-'}</td>
+      <td class="px-4 py-3 text-xs text-slate-500 max-w-[160px] truncate" title="${o.address||''}">${o.address||'-'}</td>
+      <td class="px-4 py-3 text-xs text-slate-600 max-w-[180px]">${(o.items||[]).map(i=>i.name||i.title||i).join(', ')||'-'}</td>
+      <td class="px-4 py-3 text-xs font-semibold whitespace-nowrap">RM ${(o.total||0).toFixed(2)}</td>
+      <td class="px-4 py-3 whitespace-nowrap">${statusBadge(o.status)}</td>
+      <td class="px-4 py-3 whitespace-nowrap">
+        ${o.status==='paid' ? `<button onclick="updateOrderStatus('${o.id}','shipped')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg transition">📦 Shipped</button>` : ''}
+        ${o.status==='pending' ? `<button onclick="updateOrderStatus('${o.id}','paid')" class="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg transition">✅ Mark Paid</button>` : ''}
+        ${o.status==='shipped' ? `<span class="text-xs text-slate-400">Selesai</span>` : ''}
+      </td>
     </tr>`).join('');
+};
+
+window.updateOrderStatus = async (orderId, status) => {
+  await updateDoc(doc(db,'orders',orderId), { status, updatedAt: serverTimestamp() });
+  loadOrders();
+};
+
+// ── K2 MARKING SCHEME EDITOR (Block-based Schema) ────────────────
+let k2Data = null;
+let k2ContentId = null;
+let k2SlotKey = null;
+let k2MarkingId = null;
+let k2SelectedQuestion = null;
+
+window.openK2MarkingEditor = async (contentId, slotKey, markingId) => {
+  k2ContentId = contentId;
+  k2SlotKey = slotKey;
+  k2MarkingId = markingId || null;
+  k2Data = { parts: [], rules: [] };
+  k2SelectedQuestion = null;
+
+  if (k2MarkingId) {
+    try {
+      const snap = await getDoc(doc(db, 'k2-marking-schemes', k2MarkingId));
+      if (snap.exists()) {
+        k2Data = snap.data();
+      }
+    } catch (e) {
+      console.warn('Error loading K2 marking:', e);
+    }
+  }
+
+  const contentSnap = await getDoc(doc(db, 'content', contentId));
+  const cd = contentSnap.exists() ? contentSnap.data() : {};
+
+  document.getElementById('k2e-title').textContent = `${cd.title || 'Trial Paper'} — K2 Marking`;
+  document.getElementById('k2e-subtitle').textContent = `${cd.subject || ''} · ${cd.year || ''}`;
+  document.getElementById('sec-content-body').classList.add('hidden');
+  document.getElementById('k2-editor').classList.remove('hidden');
+
+  k2RenderQuestions();
+};
+
+window.k2CloseEditor = () => {
+  document.getElementById('k2-editor').classList.add('hidden');
+  document.getElementById('sec-content-body').classList.remove('hidden');
+  k2Data = null;
+  k2ContentId = null;
+  k2SlotKey = null;
+  k2SelectedQuestion = null;
+  loadContent();
+};
+
+window.k2AnalyzeJSON = () => {
+  const input = document.getElementById('k2-import-input');
+  const errorEl = document.getElementById('k2-import-error');
+  const statusEl = document.getElementById('k2-import-status');
+
+  errorEl.classList.add('hidden');
+  statusEl.textContent = '';
+
+  try {
+    const json = JSON.parse(input.value);
+    const data = json.parts ? json : { parts: json };
+
+    if (!data.parts || !Array.isArray(data.parts)) {
+      throw new Error('JSON must have "parts" array');
+    }
+
+    k2Data = data;
+    input.value = '';
+    statusEl.textContent = '✅ Loaded ' + data.parts.length + ' part(s)';
+    k2RenderQuestions();
+  } catch (e) {
+    errorEl.textContent = '❌ ' + e.message;
+    errorEl.classList.remove('hidden');
+  }
+};
+
+function k2RenderQuestions() {
+  const list = document.getElementById('k2-questions-list');
+  const content = document.getElementById('k2-editor-content');
+
+  const parts = k2Data?.parts || [];
+  document.getElementById('k2e-count').textContent = `${parts.length} part${parts.length !== 1 ? 's' : ''}`;
+
+  if (!parts.length) {
+    list.innerHTML = '<div class="text-xs text-slate-400 text-center py-4">Paste JSON to load</div>';
+    content.innerHTML = '<div class="text-center text-slate-400 py-8">No parts loaded</div>';
+    return;
+  }
+
+  list.innerHTML = parts.map((part, i) => {
+    const isSelected = k2SelectedQuestion === i;
+    const totalMarks = part.marks || 0;
+    const partLabel = part.id || String.fromCharCode(97 + i);
+    return `<div class="p-2.5 rounded-lg cursor-pointer transition border-l-2 ${isSelected ? 'bg-indigo-100 border-indigo-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}"
+      onclick="k2SelectQuestion(${i})">
+      <div class="text-xs font-bold text-slate-700">(${partLabel})</div>
+      <div class="text-xs text-slate-500">${totalMarks}m</div>
+    </div>`;
+  }).join('');
+
+  if (k2SelectedQuestion === null && parts.length > 0) {
+    k2SelectQuestion(0);
+  } else if (k2SelectedQuestion !== null) {
+    k2RenderEditor(k2SelectedQuestion);
+  }
+}
+
+window.k2SelectQuestion = (index) => {
+  k2SelectedQuestion = index;
+  k2RenderQuestions();
+};
+
+function k2RenderEditor(index) {
+  const part = k2Data.parts[index];
+  if (!part) return;
+
+  const content = document.getElementById('k2-editor-content');
+  const partLabel = part.id || String.fromCharCode(97 + index);
+  const blocks = part.blocks || [];
+
+  let html = `
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-slate-700 text-sm">(${partLabel}) — ${part.marks || 0} marks</h3>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-500">Block Type</label>
+          <div class="text-xs text-slate-600 py-2 bg-slate-50 px-3 rounded">${part.blocks?.[0]?.type || 'list'}</div>
+        </div>
+
+        ${blocks.length ? blocks.map((block, bi) => k2RenderBlock(block, bi, index)).join('') : '<div class="text-xs text-slate-400 italic">No blocks</div>'}
+      </div>
+
+      <div class="mt-4 pt-4 border-t border-slate-100">
+        <textarea class="field text-xs w-full" rows="6" placeholder="Edit JSON directly..." oninput="this.dataset.json = this.value">${JSON.stringify(part, null, 2)}</textarea>
+        <button onclick="k2UpdatePart(${index}, document.querySelector('textarea[rows=6]').value)" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition">✓ Update Part</button>
+      </div>
+    </div>
+  `;
+
+  content.innerHTML = html;
+}
+
+function k2RenderBlock(block, bi, qi) {
+  const items = block.items || [];
+  if (block.type === 'list') {
+    return `
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs font-semibold text-slate-600 mb-2">List Items (${items.length})</div>
+        ${items.map((item, ii) => `
+          <div class="text-xs bg-white rounded p-2 mb-1 flex justify-between items-start">
+            <div>
+              <div class="font-semibold text-slate-700">${item.text || '(empty)'}</div>
+              <div class="text-slate-500">${item.marks || 0}m • ${(item.keywords || []).join(', ') || '(no keywords)'}</div>
+            </div>
+            <button onclick="k2DeleteItem(${qi}, ${bi}, ${ii})" class="text-red-500 text-xs hover:text-red-700">✕</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+  if (block.type === 'formula') {
+    return `
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs font-semibold text-slate-600 mb-2">Formula</div>
+        <code class="text-xs bg-white p-2 rounded block">${block.latex || '(empty)'}</code>
+      </div>
+    `;
+  }
+  if (block.type === 'numeric') {
+    return `
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs font-semibold text-slate-600 mb-2">Numeric Answer</div>
+        <div class="text-xs bg-white p-2 rounded">${block.value || 0} ±${block.tolerance || 0.01}</div>
+      </div>
+    `;
+  }
+  return `<div class="text-xs text-slate-400">Block type: ${block.type}</div>`;
+}
+
+window.k2UpdatePart = (index, json) => {
+  try {
+    const updated = JSON.parse(json);
+    k2Data.parts[index] = { ...k2Data.parts[index], ...updated };
+    k2RenderEditor(index);
+  } catch (e) {
+    alert('Invalid JSON: ' + e.message);
+  }
+};
+
+window.k2DeleteItem = (qi, bi, ii) => {
+  if (confirm('Delete this item?')) {
+    k2Data.parts[qi].blocks[bi].items.splice(ii, 1);
+    k2RenderEditor(qi);
+  }
+};
+
+window.k2SaveMarking = async () => {
+  const btn = document.getElementById('k2e-save-btn');
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+
+  try {
+    const markingData = {
+      contentId: k2ContentId,
+      slotKey: k2SlotKey,
+      ...k2Data,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser?.email || 'unknown'
+    };
+
+    if (k2MarkingId) {
+      await updateDoc(doc(db, 'k2-marking-schemes', k2MarkingId), markingData);
+    } else {
+      const ref = await addDoc(collection(db, 'k2-marking-schemes'), {
+        ...markingData,
+        createdAt: serverTimestamp(),
+        createdBy: currentUser?.email || 'unknown'
+      });
+      k2MarkingId = ref.id;
+      await updateDoc(doc(db, 'content', k2ContentId), {
+        slots: {
+          ...(editingData?.slots || {}),
+          [k2SlotKey]: {
+            type: 'marking',
+            markingId: ref.id
+          }
+        }
+      });
+    }
+
+    btn.textContent = '✅ Saved!';
+    setTimeout(() => {
+      btn.textContent = '💾 Save';
+      btn.disabled = false;
+    }, 2000);
+  } catch (e) {
+    btn.textContent = '💾 Save';
+    btn.disabled = false;
+    alert('Error: ' + e.message);
+  }
 };
 
 // ── Q&A EDITOR ────────────────────────────────────────────────────
@@ -1201,10 +2084,19 @@ window.openQAEditor = async (contentId, qaId) => {
     const snap = await getDoc(doc(db,'qa',qaeQAId));
     if (snap.exists()) qaeQuestions = snap.data().questions || [];
   }
+
+  const draftQA = loadDraft('qa', contentId, null);
+  if (draftQA?.length > 0 && draftQA.length >= qaeQuestions.length) {
+    if (confirm(`Dijumpai ${draftQA.length} soalan draft (belum disave). Pulihkan?`)) {
+      qaeQuestions = draftQA;
+    }
+  }
+
   const contentSnap = await getDoc(doc(db,'content',contentId));
   const cd = contentSnap.exists() ? contentSnap.data() : {};
+  qaeContentLang = cd.lang || 'bm';
   document.getElementById('qae-title').textContent = `${cd.title||'Note'} — Q&A Editor`;
-  document.getElementById('qae-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}`;
+  document.getElementById('qae-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}${qaeContentLang==='bilingual'?' · 🌐 Bilingual':''}`;
   const keyEl = document.getElementById('gemini-key-qa');
   if (keyEl) keyEl.value = localStorage.getItem('allite_gkey') || '';
   document.getElementById('qa-extract-log').classList.add('hidden');
@@ -1225,8 +2117,12 @@ window.closeQAEditor = () => {
 window.saveQA = async () => {
   if (!qaeContentId) return;
   const btn = document.getElementById('qae-save-btn');
-  btn.textContent = 'Saving...'; btn.disabled = true;
+  btn.textContent = 'Uploading...'; btn.disabled = true;
   try {
+    const prefix = `qa-imgs/${qaeContentId}`;
+    const uploaded = await uploadQuestionImgs(qaeQuestions, prefix);
+    qaeQuestions = uploaded;
+    btn.textContent = 'Saving...';
     if (qaeQAId) {
       await updateDoc(doc(db,'qa',qaeQAId), { questions: qaeQuestions, updatedAt: serverTimestamp() });
     } else {
@@ -1236,6 +2132,7 @@ window.saveQA = async () => {
       qaeQAId = ref.id;
       await updateDoc(doc(db,'content',qaeContentId), { qaId: qaeQAId });
     }
+    clearDraft('qa', qaeContentId, null);
     btn.textContent = '✅ Saved!';
     setTimeout(() => { btn.textContent = '💾 Save Q&A'; btn.disabled = false; }, 2000);
     renderQAList();
@@ -1244,19 +2141,31 @@ window.saveQA = async () => {
 
 function renderQAList() {
   const count = qaeQuestions.length;
-  document.getElementById('qae-count').textContent = `${count} soalan`;
+  const total = qaeQuestions.reduce((s,q) => s + (q.parts?.length ? q.parts.reduce((ps,p)=>ps+(p.marks||0),0) : (q.marks||0)), 0);
+  const tagged = qaeQuestions.filter(q=>q.form&&q.bab).length;
+  const tagInfo = tagged===count ? '✅ Semua bertag' : `⚠️ ${count-tagged} belum ditag`;
+  document.getElementById('qae-count').textContent = count ? `${count} soalan · ${total}m · ${tagInfo}` : '0 soalan';
   const list = document.getElementById('qae-list');
   if (!count) { list.innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">Tiada soalan. Upload PDF atau klik + Tambah.</div>'; return; }
-  list.innerHTML = qaeQuestions.map((q,i) => renderQACard(q,i)).join('');
+  const qaInsertDiv = (i) => `<div class="flex justify-center my-1"><button onclick="insertQAQuestion(${i})" class="text-xs text-slate-300 hover:text-green-500 hover:bg-green-50 px-3 py-0.5 rounded-full transition border border-dashed border-slate-200 hover:border-green-300">+ sisip</button></div>`;
+  list.innerHTML = qaeQuestions.map((q,i) => renderQACard(q,i) + qaInsertDiv(i)).join('');
 }
 
 function renderQACard(q, i) {
   const exp = qaeExpanded === i;
-  return `<div class="q-card ${exp?'expanded':''}" id="qac-${i}">
+  const parts = q.parts || [];
+  const totalM = parts.length ? parts.reduce((s,p)=>s+(p.marks||0),0) : (q.marks||0);
+  const partsSummary = parts.length ? `${parts.length} sub · ` : '';
+  const isTagged = q.form && q.bab;
+  const tagBadge = isTagged
+    ? `<span class="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded shrink-0">${q.form}·B${q.bab}</span>`
+    : `<span class="text-xs bg-amber-100 text-amber-500 px-1.5 py-0.5 rounded shrink-0">? Bab</span>`;
+  return `<div class="q-card ${exp?'expanded':''}" id="qac-${i}" style="${isTagged?'':'border-left:3px solid #fbbf24;'}">
     <div class="q-header select-none" onclick="toggleQACard(${i})">
       <span class="text-xs font-bold text-green-600 shrink-0 w-8">S${q.no||i+1}</span>
       <span class="text-sm text-slate-600 flex-1 truncate">${escHtml(q.q||'(kosong)')}</span>
-      <span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded shrink-0">${q.marks||0}m</span>
+      ${tagBadge}
+      <span class="text-xs text-slate-400 shrink-0">${partsSummary}${totalM}m</span>
       <span class="text-slate-300 text-xs shrink-0">${exp?'▲':'▼'}</span>
     </div>
     ${exp ? renderQACardBody(q, i) : ''}
@@ -1264,67 +2173,436 @@ function renderQACard(q, i) {
 }
 
 function renderQACardBody(q, i) {
-  const kwStr = (q.keywords||[]).join(', ');
-  return `<div class="q-body space-y-2 pt-2">
+  const qImgs = q.qImgs || (q.qImg ? [q.qImg] : []);
+  const parts = q.parts || [];
+  return `<div class="q-body space-y-3 pt-2">
     <div>
-      <div class="text-xs font-semibold text-slate-400 mb-1">Soalan</div>
+      <div class="text-xs font-semibold text-slate-400 mb-1">Soalan Utama</div>
       <textarea class="field text-sm" rows="2" oninput="qaeSet(${i},'q',this.value)">${escHtml(q.q||'')}</textarea>
     </div>
     <div>
-      <div class="text-xs font-semibold text-slate-400 mb-1">Gambar soalan (optional)</div>
-      ${q.qImg ? `<div class="mb-1 flex items-start gap-2"><img src="${q.qImg}" class="max-h-24 rounded-lg border border-slate-200">
-        <button onclick="qaeSet(${i},'qImg','');renderQAList()" class="text-xs text-red-400 hover:underline">× Buang</button></div>` : ''}
-      <div class="paste-zone text-xs text-slate-400" onclick="triggerQAImg(${i})"
-        ondragover="event.preventDefault()" ondrop="dropQAImg(event,${i})">
-        📋 Paste / drag / klik
-        <input type="file" accept="image/*" class="hidden" id="qaimg-${i}" onchange="fileQAImg(this,${i})">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Gambar (boleh tambah banyak)</div>
+      <div class="flex flex-wrap gap-2 mb-1">
+        ${qImgs.map((img,j)=>`<div class="relative inline-block"><img src="${img}" class="h-20 rounded-lg border border-slate-200 object-cover"><button onclick="qaeDelImg(${i},${j})" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs leading-none">×</button></div>`).join('')}
+        <div class="paste-zone text-xs text-slate-400 h-20 w-20 flex flex-col items-center justify-center gap-1" onclick="triggerQAMainImg(${i})" ondragover="event.preventDefault()" ondrop="dropQAMainImg(event,${i})">
+          🖼<span>+ Gambar</span>
+          <input type="file" accept="image/*" class="hidden" id="qamainimg-${i}" onchange="fileQAMainImg(this,${i})">
+        </div>
       </div>
     </div>
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-semibold text-slate-400">Sub-soalan (a)(b)(c)...</div>
+        <button onclick="qaeAddPart(${i})" class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded-lg transition">+ Sub-soalan</button>
+      </div>
+      ${parts.length===0 ? `<div class="text-xs text-slate-300 italic mb-2">Tiada sub-soalan — isi jawapan terus di bawah.</div>` : parts.map((p,j)=>renderSubPart(i,j,p)).join('')}
+    </div>
+    ${parts.length===0 ? `
     <div>
       <div class="text-xs font-semibold text-slate-400 mb-1">Jawapan Model</div>
-      <textarea class="field text-sm" rows="4" oninput="qaeSet(${i},'answer',this.value)">${escHtml(q.answer||'')}</textarea>
+      ${richAnswerField(q.answer||'', `qaeSet(${i},'answer',this.innerHTML)`)}
+      ${vocabEditorSection(q.vocab||[], i, null)}
     </div>
     <div>
-      <div class="text-xs font-semibold text-slate-400 mb-1">Keywords untuk highlight (pisahkan dengan koma)</div>
-      <input class="field text-sm" type="text" value="${escAttr(kwStr)}"
-        oninput="qaeSet(${i},'keywords',this.value.split(',').map(k=>k.trim()).filter(Boolean))"
-        placeholder="contoh: Perjanjian Pangkor, Residen British, 1874">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Keywords (koma)</div>
+      <input class="field text-sm" type="text" value="${escAttr((q.keywords||[]).join(', '))}" oninput="qaeSet(${i},'keywords',this.value.split(',').map(k=>k.trim()).filter(Boolean))" placeholder="keyword1, keyword2">
     </div>
-    <div class="flex items-center gap-3 pt-1">
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-500">Markah:</span>
+      <input class="field text-sm w-16" type="number" value="${q.marks||4}" oninput="qaeSet(${i},'marks',parseInt(this.value)||0)">
+    </div>` : ''}
+    <div class="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold text-slate-500">Markah:</span>
-        <input class="field text-sm w-16" type="number" value="${q.marks||4}" oninput="qaeSet(${i},'marks',parseInt(this.value)||0)">
+        <span class="text-xs font-semibold text-slate-500">Form:</span>
+        <select class="field w-auto text-sm" onchange="qaeSet(${i},'form',this.value)">
+          <option value="" ${!q.form?'selected':''}>—</option>
+          <option value="F4" ${q.form==='F4'?'selected':''}>Form 4</option>
+          <option value="F5" ${q.form==='F5'?'selected':''}>Form 5</option>
+        </select>
       </div>
-      <button onclick="qaeDel(${i})" class="ml-auto text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition">🗑 Padam</button>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500">Bab:</span>
+        <select class="field w-auto text-sm" onchange="qaeSet(${i},'bab',parseInt(this.value)||'')">
+          <option value="" ${!q.bab?'selected':''}>—</option>
+          ${Array.from({length:10},(_,k)=>`<option value="${k+1}" ${q.bab===k+1?'selected':''}>${k+1}</option>`).join('')}
+        </select>
+      </div>
+      <button onclick="qaeDel(${i})" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition ml-auto">🗑 Padam</button>
     </div>
   </div>`;
 }
 
-window.toggleQACard = (i) => { qaeExpanded = qaeExpanded===i ? null : i; renderQAList(); };
-window.qaeSet = (i, f, v) => { if (qaeQuestions[i]) qaeQuestions[i][f] = v; };
-window.qaeDel = (i) => {
-  if (!confirm('Padam soalan ini?')) return;
-  qaeQuestions.splice(i,1); qaeExpanded=null; renderQAList();
+function renderSubPart(qi, pi, p) {
+  const pImgs = p.qImgs || (p.qImg ? [p.qImg] : []);
+  const letter = String.fromCharCode(97+pi);
+  const bil = qaeContentLang === 'bilingual' || !!(p.qEN || p.answerEN || p.markingPointsEN?.length);
+  return `<div class="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
+    <div class="flex gap-2 items-start mb-2">
+      <span class="text-xs font-bold text-blue-600 mt-2 w-5 shrink-0">(${letter})</span>
+      <div class="flex-1 space-y-1">
+        <textarea class="field text-sm w-full" rows="2" placeholder="Teks sub-soalan (BM)..." oninput="qaeSetPart(${qi},${pi},'q',this.value)">${escHtml(p.q||'')}</textarea>
+        ${bil?`<textarea class="field text-sm w-full" rows="2" placeholder="Sub-question text (EN)..." oninput="qaeSetPart(${qi},${pi},'qEN',this.value)">${escHtml(p.qEN||'')}</textarea>`:''}
+      </div>
+      <div class="flex items-center gap-1 shrink-0 mt-1">
+        <input class="field text-sm w-14" type="number" value="${p.marks||2}" oninput="qaeSetPart(${qi},${pi},'marks',parseInt(this.value)||0)" title="Markah">
+        <span class="text-xs text-slate-400">m</span>
+        <button onclick="qaeDelPart(${qi},${pi})" class="text-red-300 hover:text-red-500 text-sm ml-1">🗑</button>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-1 mb-2">
+      ${pImgs.map((img,j)=>`<div class="relative inline-block"><img src="${img}" class="h-14 rounded-lg border object-cover"><button onclick="qaeDelPartImg(${qi},${pi},${j})" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs leading-none">×</button></div>`).join('')}
+      <div class="paste-zone text-xs text-slate-400 h-14 w-14 flex flex-col items-center justify-center" onclick="triggerPartImg(${qi},${pi})" ondragover="event.preventDefault()" ondrop="dropPartImg(event,${qi},${pi})">
+        🖼
+        <input type="file" accept="image/*" class="hidden" id="partimg-${qi}-${pi}" onchange="filePartImg(this,${qi},${pi})">
+      </div>
+    </div>
+    <div class="text-xs font-semibold text-slate-400 mb-1">Jawapan Model ${bil?'(BM)':''}</div>
+    ${richAnswerField(p.answer||'', `qaeSetPart(${qi},${pi},'answer',this.innerHTML)`)}
+    ${bil?`<div class="text-xs font-semibold text-slate-400 mb-1 mt-2">Model Answer (EN)</div>
+    ${richAnswerField(p.answerEN||'', `qaeSetPart(${qi},${pi},'answerEN',this.innerHTML)`)}`:''}
+    ${vocabEditorSection(p.vocab||[], qi, pi)}
+    <input class="field text-sm w-full mt-2" type="text" value="${escAttr((p.keywords||[]).join(', '))}" oninput="qaeSetPart(${qi},${pi},'keywords',this.value.split(',').map(k=>k.trim()).filter(Boolean))" placeholder="keywords: highlight sahaja (3-5 perkataan)">
+    <div class="mt-2">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Marking Points – BM${bil?' (BM)':''} (1 baris = 1 fakta)</div>
+      <textarea class="field text-sm" rows="5" placeholder="Contoh:&#10;Raja Brooke melaksanakan sistem pentadbiran yang cekap&#10;..." oninput="qaeSetPart(${qi},${pi},'markingPoints',this.value.split('\\n').map(k=>k.trim()).filter(Boolean))">${escHtml((p.markingPoints||[]).join('\n'))}</textarea>
+    </div>
+    ${bil?`<div class="mt-2">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Marking Points (EN) (1 line = 1 fact)</div>
+      <textarea class="field text-sm" rows="5" placeholder="Example:&#10;James Brooke implemented an efficient administrative system&#10;..." oninput="qaeSetPart(${qi},${pi},'markingPointsEN',this.value.split('\\n').map(k=>k.trim()).filter(Boolean))">${escHtml((p.markingPointsEN||[]).join('\n'))}</textarea>
+    </div>`:''}
+    <div class="border-t border-slate-200 mt-3 pt-2 space-y-2">
+      <div class="text-xs font-semibold text-slate-400">Tips / Petua Jawapan</div>
+      <textarea class="field text-sm" rows="2" placeholder="Tip BM: Soalan ini tanya SEBAB, bukan KESAN..." oninput="qaeSetPart(${qi},${pi},'tip',this.value)">${escHtml(p.tip||'')}</textarea>
+      <textarea class="field text-sm" rows="2" placeholder="提示中文：这题问的是原因，不是影响..." oninput="qaeSetPart(${qi},${pi},'tipCN',this.value)">${escHtml(p.tipCN||'')}</textarea>
+      <textarea class="field text-sm" rows="2" placeholder="Tip EN: This question asks for CAUSES, not EFFECTS..." oninput="qaeSetPart(${qi},${pi},'tipEN',this.value)">${escHtml(p.tipEN||'')}</textarea>
+    </div>
+  </div>`;
+}
+
+window.toggleQACard  = (i) => { qaeExpanded = qaeExpanded===i ? null : i; renderQAList(); };
+window.qaeSet        = (i,f,v) => { if (qaeQuestions[i]) qaeQuestions[i][f]=v; };
+window.qaeSetPart    = (qi,pi,f,v) => { if (qaeQuestions[qi]?.parts?.[pi]) qaeQuestions[qi].parts[pi][f]=v; };
+window.qaeAddPart    = (qi) => { if(!qaeQuestions[qi].parts) qaeQuestions[qi].parts=[]; qaeQuestions[qi].parts.push({q:'',qEN:'',qImgs:[],marks:2,answer:'',answerEN:'',keywords:[],markingPoints:[],markingPointsEN:[],vocab:[],tip:'',tipCN:'',tipEN:''}); renderQAList(); };
+window.qaeDelPart    = (qi,pi) => { qaeQuestions[qi].parts.splice(pi,1); renderQAList(); };
+
+// ── RICH TEXT ──────────────────────────────────────────────────────
+let lastFocusedEditor = null;
+let savedRange = null;
+
+// selectionchange fires whenever selection changes — save only non-empty selections inside a contenteditable
+document.addEventListener('selectionchange', () => {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const node  = range.commonAncestorContainer;
+  const editable = (node.nodeType === 3 ? node.parentElement : node).closest('[contenteditable="true"]');
+  if (editable) { lastFocusedEditor = editable; savedRange = range.cloneRange(); }
+});
+
+window.fmtCmd = (cmd) => {
+  if (!savedRange) return;
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(savedRange);
+  if (sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const tag = cmd === 'bold' ? 'strong' : 'mark';
+
+  // Toggle: if selection is already inside this tag, unwrap it
+  let node = range.commonAncestorContainer;
+  if (node.nodeType === 3) node = node.parentElement;
+  const existing = node.closest(tag);
+  if (existing) {
+    const parent = existing.parentNode;
+    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+    parent.removeChild(existing);
+    sel.removeAllRanges(); savedRange = null;
+    if (lastFocusedEditor) lastFocusedEditor.dispatchEvent(new Event('input', {bubbles:true}));
+    return;
+  }
+
+  // Wrap selection in tag
+  try {
+    const frag = range.extractContents();
+    const el = document.createElement(tag);
+    if (tag === 'mark') el.style.background = '#fef9c3';
+    el.appendChild(frag);
+    range.insertNode(el);
+    sel.removeAllRanges(); savedRange = null;
+    if (lastFocusedEditor) lastFocusedEditor.dispatchEvent(new Event('input', {bubbles:true}));
+  } catch(e) { console.error('fmtCmd', e); }
 };
+
+function richAnswerField(value, onInputCmd) {
+  return `<div class="flex gap-1 mb-1">
+      <button type="button" onmousedown="event.preventDefault()" onclick="fmtCmd('bold')" class="text-xs font-bold border border-slate-200 px-2 py-0.5 rounded hover:bg-slate-100 transition">B</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="fmtCmd('highlight')" class="text-xs border border-slate-200 px-2 py-0.5 rounded transition" style="background:#fef9c3">HL</button>
+    </div>
+    <div contenteditable="true" class="field text-sm min-h-[72px] leading-relaxed" style="white-space:pre-wrap" oninput="${onInputCmd}">${value||''}</div>`;
+}
+
+function vocabEditorSection(vocab, qi, pi) {
+  const isPart = pi !== null && pi !== undefined;
+  const addCmd  = isPart ? `qaeAddPartVocab(${qi},${pi})` : `qaeAddVocab(${qi})`;
+  const rows = (vocab||[]).map((v,vi) => {
+    const st  = isPart ? `qaeSetPartVocab(${qi},${pi},${vi},'term',this.value)`    : `qaeSetVocab(${qi},${vi},'term',this.value)`;
+    const sm  = isPart ? `qaeSetPartVocab(${qi},${pi},${vi},'meaning',this.value)` : `qaeSetVocab(${qi},${vi},'meaning',this.value)`;
+    const scn = isPart ? `qaeSetPartVocab(${qi},${pi},${vi},'cn',this.value)`      : `qaeSetVocab(${qi},${vi},'cn',this.value)`;
+    const dc  = isPart ? `qaeDelPartVocab(${qi},${pi},${vi})` : `qaeDelVocab(${qi},${vi})`;
+    return `<div class="flex gap-1 mb-1 items-center">
+      <input class="field text-xs" style="flex:1;min-width:0" value="${escAttr(v.term||'')}" placeholder="Term (BM/EN)" oninput="${st}">
+      <span class="text-slate-300 shrink-0">→</span>
+      <input class="field text-xs" style="flex:1.5;min-width:0" value="${escAttr(v.meaning||'')}" placeholder="Definition" oninput="${sm}">
+      <input class="field text-xs" style="flex:1;min-width:0" value="${escAttr(v.cn||'')}" placeholder="中文" oninput="${scn}">
+      <button onclick="${dc}" class="text-red-300 hover:text-red-500 shrink-0 px-1 text-sm">×</button>
+    </div>`;
+  }).join('');
+  return `<div class="mt-2 pt-2 border-t border-slate-100">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs font-semibold text-slate-400">📖 Kosa Kata</span>
+      <button onclick="${addCmd}" class="text-xs text-blue-500 hover:text-blue-700 transition">+ 添加</button>
+    </div>
+    ${rows || '<div class="text-xs text-slate-300 italic">Tiada kosa kata.</div>'}
+  </div>`;
+}
+
+window.qaeAddVocab     = (qi)         => { if(!qaeQuestions[qi].vocab) qaeQuestions[qi].vocab=[]; qaeQuestions[qi].vocab.push({term:'',meaning:'',cn:''}); renderQAList(); };
+window.qaeSetVocab     = (qi,vi,f,v)  => { if(qaeQuestions[qi]?.vocab?.[vi]) qaeQuestions[qi].vocab[vi][f]=v; };
+window.qaeDelVocab     = (qi,vi)      => { qaeQuestions[qi].vocab.splice(vi,1); renderQAList(); };
+window.qaeAddPartVocab = (qi,pi)      => { if(!qaeQuestions[qi].parts[pi].vocab) qaeQuestions[qi].parts[pi].vocab=[]; qaeQuestions[qi].parts[pi].vocab.push({term:'',meaning:'',cn:''}); renderQAList(); };
+window.qaeSetPartVocab = (qi,pi,vi,f,v) => { if(qaeQuestions[qi]?.parts?.[pi]?.vocab?.[vi]) qaeQuestions[qi].parts[pi].vocab[vi][f]=v; };
+window.qaeDelPartVocab = (qi,pi,vi)   => { qaeQuestions[qi].parts[pi].vocab.splice(vi,1); renderQAList(); };
+window.qaeDel        = (i) => { if(!confirm('Padam soalan ini?')) return; qaeQuestions.splice(i,1); qaeExpanded=null; renderQAList(); };
 window.addQAQuestion = () => {
-  qaeQuestions.push({ no:qaeQuestions.length+1, q:'', qImg:'', answer:'', keywords:[], marks:4 });
-  qaeExpanded = qaeQuestions.length-1; renderQAList();
-  setTimeout(() => document.getElementById(`qac-${qaeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 80);
+  qaeQuestions.push({no:qaeQuestions.length+1, q:'', qImgs:[], parts:[], answer:'', keywords:[], vocab:[], marks:4, form:'', bab:''});
+  qaeExpanded=qaeQuestions.length-1; renderQAList();
+  setTimeout(()=>document.getElementById(`qac-${qaeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}),80);
 };
-window.triggerQAImg = (i) => document.getElementById(`qaimg-${i}`)?.click();
-window.fileQAImg    = (inp,i) => { if(inp.files[0]) readQAImg(inp.files[0],i); };
-window.dropQAImg    = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) readQAImg(f,i); };
-function readQAImg(file, i) {
+
+window.openImportQATips = () => {
+  document.getElementById('import-qa-tips-input').value = '';
+  document.getElementById('import-qa-tips-error').classList.add('hidden');
+  document.getElementById('import-qa-tips-modal').classList.remove('hidden');
+};
+window.closeImportQATips = () => {
+  document.getElementById('import-qa-tips-modal').classList.add('hidden');
+};
+window.doImportQATips = () => {
+  const raw = cleanGeminiOutput(document.getElementById('import-qa-tips-input').value);
+  const errEl = document.getElementById('import-qa-tips-error');
+  errEl.classList.add('hidden');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) {
+    errEl.textContent = 'JSON tidak sah: ' + e.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!Array.isArray(parsed) || !parsed.length) {
+    errEl.textContent = 'Perlu array [ {...}, ... ]';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const byNo = {};
+  qaeQuestions.forEach((q, i) => { byNo[q.no ?? i + 1] = i; });
+  let updated = 0;
+  parsed.forEach((src, si) => {
+    const no = src.no ?? si + 1;
+    const idx = byNo[no];
+    if (idx === undefined) return;
+    const q = qaeQuestions[idx];
+    // top-level tip (no-parts questions)
+    if (src.tip   !== undefined) q.tip   = src.tip;
+    if (src.tipCN !== undefined) q.tipCN = src.tipCN;
+    if (src.tipEN !== undefined) q.tipEN = src.tipEN;
+    // per-part tips
+    const srcParts = src.parts ?? [];
+    srcParts.forEach((sp, pi) => {
+      if (!q.parts?.[pi]) return;
+      if (sp.tip   !== undefined) q.parts[pi].tip   = sp.tip;
+      if (sp.tipCN !== undefined) q.parts[pi].tipCN = sp.tipCN;
+      if (sp.tipEN !== undefined) q.parts[pi].tipEN = sp.tipEN;
+    });
+    updated++;
+  });
+  qaeExpanded = null;
+  renderQAList();
+  closeImportQATips();
+  document.getElementById('qae-list').scrollIntoView({behavior:'smooth', block:'start'});
+  alert(`✅ ${updated} soalan dikemaskini tips.`);
+};
+
+window.openImportJSON = () => {
+  document.getElementById('import-json-input').value = '';
+  document.getElementById('import-json-error').classList.add('hidden');
+  document.getElementById('import-json-modal').classList.remove('hidden');
+};
+window.closeImportJSON = () => {
+  document.getElementById('import-json-modal').classList.add('hidden');
+};
+window.doImportJSON = () => {
+  const raw = cleanGeminiOutput(document.getElementById('import-json-input').value);
+  const errEl = document.getElementById('import-json-error');
+  errEl.classList.add('hidden');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) {
+    errEl.textContent = 'JSON tidak sah: ' + e.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    errEl.textContent = 'Perlu array soalan [ {...}, ... ]';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  // Smart merge: always merge by question no, never wipe existing data
+  const existingByNo = {};
+  qaeQuestions.forEach((q, i) => { existingByNo[q.no ?? i + 1] = q; });
+
+  const mergePart = (ep, sp) => {
+    if (!sp) return ep;
+    return {
+      ...ep,
+      q:               sp.q               || ep.q               || '',
+      qEN:             sp.qEN             || ep.qEN             || '',
+      marks:           sp.marks           ?? ep.marks           ?? 2,
+      answer:          sp.answer          || ep.answer          || '',
+      answerEN:        sp.answerEN        || ep.answerEN        || '',
+      keywords:        (Array.isArray(sp.keywords)        && sp.keywords.length)        ? sp.keywords        : (ep.keywords        ?? []),
+      markingPoints:   (Array.isArray(sp.markingPoints)   && sp.markingPoints.length)   ? sp.markingPoints   : (ep.markingPoints   ?? []),
+      markingPointsEN: (Array.isArray(sp.markingPointsEN) && sp.markingPointsEN.length) ? sp.markingPointsEN : (ep.markingPointsEN ?? []),
+      vocab:           (Array.isArray(sp.vocab) && sp.vocab.length) ? sp.vocab.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''})) : (ep.vocab ?? []),
+      tip:             sp.tip   || ep.tip   || '',
+      tipCN:           sp.tipCN || ep.tipCN || '',
+      tipEN:           sp.tipEN || ep.tipEN || '',
+    };
+  };
+
+  const importedByNo = {};
+  parsed.forEach((src, i) => { importedByNo[src.no ?? i + 1] = src; });
+  const allNos = [...new Set([
+    ...qaeQuestions.map((q, i) => q.no ?? i + 1),
+    ...parsed.map((src, i) => src.no ?? i + 1)
+  ])].sort((a, b) => a - b);
+  qaeQuestions = allNos.map(no => {
+    const ex  = existingByNo[no] ?? {};
+    const src = importedByNo[no];
+    if (!src) return ex;
+    const srcParts = src.parts ?? [];
+    const exParts  = ex.parts  ?? [];
+    const len = Math.max(srcParts.length, exParts.length);
+    const parts = Array.from({ length: len }, (_, pi) => {
+      const ep = exParts[pi] ?? { q:'', qImgs:[], marks:2, answer:'', keywords:[], markingPoints:[], vocab:[] };
+      return mergePart(ep, srcParts[pi]);
+    });
+    return {
+      no,
+      q:               src.q               || ex.q               || '',
+      qEN:             src.qEN             || ex.qEN             || '',
+      qImgs:           ex.qImgs            ?? [],
+      parts,
+      answer:          src.answer          || ex.answer          || '',
+      answerEN:        src.answerEN        || ex.answerEN        || '',
+      keywords:        (Array.isArray(src.keywords)        && src.keywords.length)        ? src.keywords        : (ex.keywords        ?? []),
+      markingPoints:   (Array.isArray(src.markingPoints)   && src.markingPoints.length)   ? src.markingPoints   : (ex.markingPoints   ?? []),
+      markingPointsEN: (Array.isArray(src.markingPointsEN) && src.markingPointsEN.length) ? src.markingPointsEN : (ex.markingPointsEN ?? []),
+      vocab:           (Array.isArray(src.vocab) && src.vocab.length) ? src.vocab.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''})) : (ex.vocab ?? []),
+      marks:           src.marks           ?? ex.marks           ?? 4,
+      form:            ex.form             ?? '',
+      bab:             ex.bab              ?? '',
+    };
+  });
+
+  qaeExpanded = null;
+  renderQAList();
+  closeImportJSON();
+  document.getElementById('qae-list').scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+// Main question images
+window.triggerQAMainImg = (i) => document.getElementById(`qamainimg-${i}`)?.click();
+window.fileQAMainImg    = (inp,i) => { if(inp.files[0]) readAndPushImg(inp.files[0], url=>{ if(!qaeQuestions[i].qImgs) qaeQuestions[i].qImgs=[]; qaeQuestions[i].qImgs.push(url); renderQAList(); }); };
+window.dropQAMainImg    = (e,i)   => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) window.fileQAMainImg({files:[f]},i); };
+window.qaeDelImg        = (i,j)   => { qaeQuestions[i].qImgs.splice(j,1); renderQAList(); };
+
+// Sub-part images
+window.triggerPartImg   = (qi,pi) => document.getElementById(`partimg-${qi}-${pi}`)?.click();
+window.filePartImg      = (inp,qi,pi) => { if(inp.files[0]) readAndPushImg(inp.files[0], url=>{ if(!qaeQuestions[qi].parts[pi].qImgs) qaeQuestions[qi].parts[pi].qImgs=[]; qaeQuestions[qi].parts[pi].qImgs.push(url); renderQAList(); }); };
+window.dropPartImg      = (e,qi,pi) => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f?.type.startsWith('image/')) window.filePartImg({files:[f]},qi,pi); };
+window.qaeDelPartImg    = (qi,pi,j) => { qaeQuestions[qi].parts[pi].qImgs.splice(j,1); renderQAList(); };
+
+function readAndPushImg(file, cb) {
   const r = new FileReader();
-  r.onload = e => { qaeSet(i,'qImg',e.target.result); renderQAList(); };
+  r.onload = e => cb(e.target.result);
   r.readAsDataURL(file);
 }
 
+// Skema extraction
+let lastSkemaFile = null;
+window.retrySkema = () => { if (lastSkemaFile) extractSkema({ files: [lastSkemaFile] }); };
+
+window.extractSkema = async (input) => {
+  const key = document.getElementById('gemini-key-qa').value.trim();
+  if (!key) { alert('Masukkan Gemini API key terlebih dahulu.'); return; }
+  const logEl = document.getElementById('skema-log');
+  const panel = document.getElementById('skema-panel');
+  logEl.classList.remove('hidden'); logEl.textContent = '⏳ Mengekstrak skema...';
+  panel.innerHTML = '';
+
+  const file = input.files[0]; if (!file) return;
+  lastSkemaFile = file;
+  document.getElementById('skema-retry-btn').classList.remove('hidden');
+  document.getElementById('skema-pdf-name').textContent = file.name;
+  let images = [];
+  if (file.type === 'application/pdf') {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    for (let p=1; p<=pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({scale:1.5});
+      const canvas = document.createElement('canvas');
+      canvas.width=vp.width; canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      images.push(canvas.toDataURL('image/jpeg',0.85).split(',')[1]);
+    }
+  } else {
+    const url = await new Promise(r=>{ const fr=new FileReader(); fr.onload=e=>r(e.target.result.split(',')[1]); fr.readAsDataURL(file); });
+    images.push(url);
+  }
+
+  const prompt = `This is an SPM exam marking scheme. Extract ALL answers organized by question number.
+Format clearly for copy-paste:
+
+[Soalan 1] ATAU [Soalan 1(a)], [Soalan 1(b)] jika ada sub-bahagian
+- isi/point 1
+- isi/point 2
+
+[Soalan 2]
+...
+
+Include ALL marking points. Use exact format above.`;
+
+  const parts = [{text:prompt}, ...images.map(img=>({inline_data:{mime_type:'image/jpeg',data:img}}))];
+  const result = await geminiRequest(key, parts);
+  logEl.classList.add('hidden');
+  if (result.error) { logEl.classList.remove('hidden'); logEl.textContent = `❌ ${result.error}`; input.value=''; return; }
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  panel.innerHTML = `<pre class="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed select-text">${escHtml(text)}</pre>`;
+  input.value = '';
+};
+
 document.addEventListener('paste', e => {
   if (qaeExpanded === null) return;
-  if (!document.getElementById('qa-editor') || document.getElementById('qa-editor').classList.contains('hidden')) return;
+  if (document.getElementById('qa-editor')?.classList.contains('hidden')) return;
   for (const item of (e.clipboardData?.items||[])) {
-    if (item.type.startsWith('image/')) { readQAImg(item.getAsFile(), qaeExpanded); break; }
+    if (item.type.startsWith('image/')) {
+      readAndPushImg(item.getAsFile(), url => {
+        if (!qaeQuestions[qaeExpanded].qImgs) qaeQuestions[qaeExpanded].qImgs = [];
+        qaeQuestions[qaeExpanded].qImgs.push(url);
+        renderQAList();
+      });
+      break;
+    }
   }
 });
 
@@ -1332,14 +2610,29 @@ const QA_PROMPT = (pages) => `Extract ALL essay/structured questions from these 
 Return ONLY a JSON array (no other text):
 [{
   "no": 1,
-  "q": "full question text",
-  "qImg": "",
-  "answer": "complete model answer with all marking points",
-  "keywords": ["important keyword1", "keyword2", "key phrase 3"],
+  "q": "main question text (before any sub-parts)",
+  "qImgs": [],
+  "parts": [
+    {
+      "part": "a",
+      "q": "sub-question text",
+      "qImgs": [],
+      "marks": 4,
+      "answer": "write a fluent model essay answer here (paragraph form)",
+      "markingPoints": ["ALL possible correct facts from the marking scheme — every fact that can earn a mark, not just (marks) count", "second possible fact", "third possible fact"],
+      "keywords": ["2-4 key terms for highlighting only"]
+    }
+  ],
+  "answer": "only if no sub-parts — complete model answer",
+  "markingPoints": ["only if no sub-parts — all possible scoring facts"],
+  "keywords": ["only if no sub-parts"],
   "marks": 8
 }]
-For keywords: include 3-8 key terms/phrases that must appear in a good answer — these will be highlighted for students.
-Include ALL questions found. Return ONLY the JSON array.`;
+- If a question has sub-parts (a)(b)(c), put them in "parts" array and leave top-level "answer"/"markingPoints" empty.
+- If no sub-parts, put answer directly in "answer" field and leave "parts" as [].
+- markingPoints MUST list EVERY fact that appears in the marking scheme for that sub-part — even if there are 15 facts for a 3-mark question, list all 15. Students may write any of them to earn marks.
+- Leave qImgs as [] (admin will add images manually).
+Include ALL questions. Return ONLY the JSON array.`;
 
 // ── Q&A PDF EXTRACTION ────────────────────────────────────────────
 window.extractQAFromPdf = async (input) => {
@@ -1365,7 +2658,7 @@ window.extractQAFromPdf = async (input) => {
   const images = [];
   for (let p=1; p<=pdf.numPages; p++) {
     const page = await pdf.getPage(p);
-    const vp = page.getViewport({scale:2});
+    const vp = page.getViewport({scale:1.5});
     const canvas = document.createElement('canvas');
     canvas.width=vp.width; canvas.height=vp.height;
     await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
@@ -1394,8 +2687,8 @@ window.extractQAFromPdf = async (input) => {
       qaExtractionFailedBatches.push({ pages, start: s });
       continue;
     }
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    const match = text.match(/\[[\s\S]*\]/);
+    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = raw.match(/\[[\s\S]*\]/);
     if (match) {
       try {
         const qs = JSON.parse(match[0]);
@@ -1414,12 +2707,17 @@ window.extractQAFromPdf = async (input) => {
   const seen = new Set();
   const unique = all.filter(q=>{ if(seen.has(q.no)) return false; seen.add(q.no); return true; })
     .sort((a,b)=>(a.no||0)-(b.no||0))
-    .map(q => ({ ...q, qImg: qaeQuestions.find(e=>e.no===q.no)?.qImg||'' }));
+    .map(q => ({
+      ...q,
+      qImgs: q.qImgs || [],
+      parts: (q.parts||[]).map(p => ({...p, qImgs: p.qImgs||[]})),
+    }));
 
   qaeQuestions = unique; qaeExpanded = null; renderQAList();
-  log(`🎉 Selesai — ${unique.length} soalan diekstrak (dengan keywords).`, 'log-ok');
+  saveDraft('qa', qaeContentId, null, qaeQuestions);
+  log(`🎉 Selesai — ${unique.length} soalan diekstrak.`, 'log-ok');
   if (qaExtractionFailedBatches.length > 0) {
-    log(`⚠️ ${qaExtractionFailedBatches.length} batch gagal — klik Retry untuk cuba semula sahaja batch yang gagal.`, 'log-err');
+    log(`⚠️ ${qaExtractionFailedBatches.length} batch gagal — klik Retry.`, 'log-err');
     addRetryBtn(logEl, qaExtractionFailedBatches.length, retryQAFailedBatches);
   }
   input.value = '';
@@ -1436,8 +2734,8 @@ window.retryQAFailedBatches = async () => {
   const batches = [...qaExtractionFailedBatches];
   qaExtractionFailedBatches = [];
   log(`🔄 Mencuba ${batches.length} batch yang gagal...`);
-  const BATCH = 3;
 
+  const BATCH = 3;
   for (const { pages, start } of batches) {
     await new Promise(r => setTimeout(r, 3000));
     log(`🤖 Retry halaman ${pages}...`);
@@ -1452,16 +2750,15 @@ window.retryQAFailedBatches = async () => {
       qaExtractionFailedBatches.push({ pages, start });
       continue;
     }
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    const match = text.match(/\[[\s\S]*\]/);
+    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const match = raw.match(/\[[\s\S]*\]/);
     if (match) {
       try {
         const qs = JSON.parse(match[0]);
         for (const q of qs) {
           const idx = qaeQuestions.findIndex(e => e.no === q.no);
           const merged = { ...q, qImg: idx >= 0 ? (qaeQuestions[idx].qImg||'') : '' };
-          if (idx >= 0) qaeQuestions[idx] = merged;
-          else qaeQuestions.push(merged);
+          if (idx >= 0) qaeQuestions[idx] = merged; else qaeQuestions.push(merged);
         }
         qaeQuestions.sort((a,b)=>(a.no||0)-(b.no||0));
         renderQAList();
@@ -1476,6 +2773,7 @@ window.retryQAFailedBatches = async () => {
     }
   }
 
+  saveDraft('qa', qaeContentId, null, qaeQuestions);
   if (qaExtractionFailedBatches.length > 0) {
     log(`⚠️ Masih ${qaExtractionFailedBatches.length} batch gagal.`, 'log-err');
     addRetryBtn(logEl, qaExtractionFailedBatches.length, retryQAFailedBatches);
@@ -1484,9 +2782,30 @@ window.retryQAFailedBatches = async () => {
   }
 };
 
+window.insertQuestion = (i) => {
+  qeQuestions.splice(i+1, 0, { no:'', q:'', a:'', b:'', c:'', d:'', answer:'', qImg:'', aImg:'', bImg:'', cImg:'', dImg:'', form:'', bab:'' });
+  qeExpanded = i+1; renderQeList();
+};
+
+window.insertQAQuestion = (i) => {
+  qaeQuestions.splice(i+1, 0, { no: qaeQuestions.length+1, q:'', qImgs:[], parts:[], answer:'', keywords:[], vocab:[], marks:4, form:'', bab:'' });
+  qaeExpanded = i+1; renderQAList();
+};
+
 // ── UTILS ──────────────────────────────────────────────────────────
 function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function escHtml(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Strip Gemini citation markers and markdown code fences before JSON.parse
+function cleanGeminiOutput(raw) {
+  return raw
+    .replace(/\[cite_start\]/gi, '')
+    .replace(/\[cite_end\]/gi, '')
+    .replace(/\[cite:\s*[\d,\s]+\]/gi, '')
+    .replace(/^```(?:json)?\s*/im, '')
+    .replace(/\s*```\s*$/im, '')
+    .trim();
+}
 </script>
 </body>
 </html>

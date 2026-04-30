@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Soalan Esei – Allite</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
+    authDomain: "allite-platform.firebaseapp.com",
+    projectId: "allite-platform",
+    storageBucket: "allite-platform.firebasestorage.app",
+    messagingSenderId: "989451608043",
+    appId: "1:989451608043:web:c33de8fdcc3383dbc6c3ae"
+  };
+  const app  = initializeApp(firebaseConfig);
+  const db   = getFirestore(app);
+  const auth = getAuth(app);
+  window._authReady  = new Promise(r => onAuthStateChanged(auth, r));
+  window._getQADoc   = async (id) => { const s = await getDoc(doc(db,'qa',id)); return s.exists()?{id:s.id,...s.data()}:null; };
+  window._getContent = async (id) => { const s = await getDoc(doc(db,'content',id)); return s.exists()?{id:s.id,...s.data()}:null; };
+</script>
+<style>
+  * { font-family: 'Inter', system-ui, sans-serif; }
+  body { background: #F7FAF7; }
+  .kw        { background:#fef9c3; border-radius:3px; padding:0 2px; font-weight:600; }
+  .ans-box   { border-left:3px solid #4B7A5C; background:#f0fdf4; }
+  .ans-box-math { border-left:3px solid #3B82F6; background:#eff6ff; }
+  .tip-box   { border-left:3px solid #C17D4B; background:#FDEFD8; }
+  .write-area { border:1.5px solid #e2e8f0; border-radius:12px; padding:12px; width:100%; font-size:14px; resize:none; background:white; transition:border .15s; }
+  .write-area:focus { outline:none; border-color:#4B7A5C; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<div class="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+  <a href="index.html" class="text-slate-400 hover:text-slate-600 text-sm">←</a>
+  <div class="h-4 w-px bg-slate-200"></div>
+  <div class="flex-1 min-w-0">
+    <div class="font-bold text-slate-700 text-sm truncate" id="qa-title">Memuatkan...</div>
+    <div class="text-xs text-slate-400" id="qa-sub"></div>
+  </div>
+  <div class="text-xs text-slate-400" id="qa-marks"></div>
+</div>
+
+<!-- Content -->
+<div class="max-w-3xl mx-auto px-4 py-6" id="qa-body">
+  <div class="text-center text-slate-400 py-16 text-sm">Memuatkan soalan...</div>
+</div>
+
+<script>
+let _qaSubject    = '';
+let _qaData       = null;
+let _contentLang  = 'bm';
+let _displayLang  = 'bm';
+
+const MATH_SUBJECTS = ['matematik', 'math', 'additional math', 'add math', 'statistics', 'statistik'];
+function isMath() {
+  const s = _qaSubject.toLowerCase();
+  return MATH_SUBJECTS.some(m => s.includes(m));
+}
+
+// Shared palettes
+const FACT_PALETTE = [
+  'bg-emerald-100 text-emerald-700', 'bg-blue-100 text-blue-700',
+  'bg-amber-100 text-amber-700',     'bg-purple-100 text-purple-700',
+  'bg-rose-100 text-rose-700',       'bg-cyan-100 text-cyan-700',
+];
+const STEP_PALETTE = [
+  'bg-blue-100 text-blue-700',    'bg-indigo-100 text-indigo-700',
+  'bg-sky-100 text-sky-700',      'bg-violet-100 text-violet-700',
+  'bg-cyan-100 text-cyan-700',    'bg-slate-100 text-slate-600',
+];
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderImages(imgs) {
+  if (!imgs?.length) return '';
+  return `<div class="flex flex-wrap gap-2 mb-3">${imgs.map(src =>
+    `<img src="${src}" class="max-w-full rounded-xl border border-slate-200 max-h-64 object-contain">`
+  ).join('')}</div>`;
+}
+
+function renderVocab(vocab) {
+  if (!vocab?.length) return '';
+  const borderColor = isMath() ? 'border-blue-200' : 'border-emerald-200';
+  return `<div class="mt-3 pt-3 border-t ${borderColor}">
+    <div class="text-xs font-semibold text-slate-500 mb-2">📖 ${isMath() ? 'Formula & Istilah' : 'Kosa Kata'}</div>
+    <table class="text-xs w-full">
+      ${vocab.map(v => `<tr>
+        <td class="pr-3 py-1 font-semibold text-slate-700 w-1/3">${escHtml(v.term)}</td>
+        <td class="text-slate-500 pr-3">${escHtml(v.meaning)}</td>
+        ${v.cn ? `<td class="text-slate-400 text-right">${escHtml(v.cn)}</td>` : ''}
+      </tr>`).join('')}
+    </table>
+  </div>`;
+}
+
+function renderAnswer(answer, vocab) {
+  if (!answer) return '';
+  const math    = isMath();
+  const palette = math ? STEP_PALETTE : FACT_PALETTE;
+  const prefix  = math ? 'L' : 'F';
+  const boxClass = math ? 'ans-box-math' : 'ans-box';
+  const lines = answer.split(/<br\s*\/?>/i).map(f => f.trim()).filter(Boolean);
+  const content = lines.length > 1
+    ? lines.map((line, i) => `<div class="flex items-start gap-2 mb-2 last:mb-0">
+        <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i + 1}</span>
+        <div class="flex-1 text-sm text-slate-700 leading-relaxed font-${math ? 'mono' : 'sans'}">${line}</div>
+      </div>`).join('')
+    : `<div class="text-sm text-slate-700 leading-relaxed">${answer}</div>`;
+  const badgeText = lines.length > 1 ? (math ? `${lines.length} langkah penyelesaian` : `${lines.length} isi jawapan`) : '';
+  const badge = badgeText ? `<div class="text-xs text-slate-400 font-medium mb-3">${badgeText}</div>` : '';
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">${badge}${content}${renderVocab(vocab)}</div>`;
+}
+
+function renderMarkingPoints(markingPoints, marks, vocab) {
+  if (!markingPoints?.length) return '';
+  const math    = isMath();
+  const palette = math ? STEP_PALETTE : FACT_PALETTE;
+  const prefix  = math ? 'L' : 'F';
+  const boxClass = math ? 'ans-box-math' : 'ans-box';
+  const badgeText = math
+    ? `${markingPoints.length} langkah penyelesaian`
+    : `Mana-mana <strong>${marks}</strong> daripada ${markingPoints.length} isi jawapan`;
+  const items = markingPoints.map((pt, i) =>
+    `<div class="flex items-start gap-2 mb-2 last:mb-0">
+      <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
+      <div class="flex-1 text-sm text-slate-700 leading-relaxed">${escHtml(pt)}</div>
+    </div>`
+  ).join('');
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">
+    <div class="text-xs text-slate-400 font-medium mb-3">${badgeText}</div>
+    ${items}
+    ${renderVocab(vocab)}
+  </div>`;
+}
+
+function renderTip(tip, tipCN, tipEN, id) {
+  if (!tip && !tipCN && !tipEN) return '';
+  const map    = { ms: tip||'', zh: tipCN||'', en: tipEN||'' };
+  const labels = { ms: 'BM', zh: '中文', en: 'EN' };
+  const available = ['ms','zh','en'].filter(l => map[l]);
+  const initLang  = map['ms'] ? 'ms' : available[0];
+  const tabs = available.length > 1
+    ? available.map(l => `<button onclick="switchTip('${id}','${l}')" id="tip-tab-${id}-${l}"
+        class="text-xs px-2 py-0.5 rounded-full font-semibold transition ${l === initLang ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'}">${labels[l]}</button>`).join('')
+    : '';
+  return `<div class="tip-box rounded-xl px-4 py-3 mb-3">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-xs font-bold text-amber-700">💡 ${isMath() ? 'Tips Penyelesaian' : 'Tips Jawapan'}</span>
+      <div class="flex gap-1">${tabs}</div>
+    </div>
+    <div id="tip-text-${id}" class="text-xs text-amber-900 leading-relaxed">${escHtml(map[initLang]||'')}</div>
+  </div>`;
+}
+
+window.switchLang = (lang) => {
+  _displayLang = lang;
+  const questions = _qaData?.questions || [];
+  document.getElementById('qa-questions').innerHTML = questions.map((q, i) => renderQuestion(q, i)).join('');
+  questions.forEach((q, i) => {
+    (q.parts||[]).forEach((p, pi) => {
+      const el = document.getElementById(`tip-text-tip-${i}-${pi}`);
+      if (el) { el.dataset.ms = p.tip||''; el.dataset.zh = p.tipCN||''; el.dataset.en = p.tipEN||''; }
+    });
+    if (!(q.parts||[]).length) {
+      const el = document.getElementById(`tip-text-tip-${i}-main`);
+      if (el) { el.dataset.ms = q.tip||''; el.dataset.zh = q.tipCN||''; el.dataset.en = q.tipEN||''; }
+    }
+  });
+  ['bm','en'].forEach(l => {
+    const btn = document.getElementById('lang-' + l);
+    if (btn) btn.className = `text-xs px-3 py-1 rounded-lg font-semibold transition ${l===lang?'bg-white text-slate-700 shadow-sm':'text-slate-400'}`;
+  });
+};
+
+window.switchTip = (id, lang) => {
+  const el = document.getElementById('tip-text-' + id);
+  if (!el) return;
+  el.textContent = el.dataset[lang] || '';
+  ['ms','zh','en'].forEach(l => {
+    const btn = document.getElementById(`tip-tab-${id}-${l}`);
+    if (!btn) return;
+    btn.className = l === lang
+      ? 'text-xs px-2 py-0.5 rounded-full font-semibold transition bg-amber-600 text-white'
+      : 'text-xs px-2 py-0.5 rounded-full font-semibold transition bg-amber-100 text-amber-700';
+  });
+};
+
+function renderPart(p, pi, qi) {
+  const letter  = String.fromCharCode(97 + pi);
+  const id      = `ans-${qi}-${pi}`;
+  const tipId   = `tip-${qi}-${pi}`;
+  const useEN   = _contentLang === 'bilingual' && _displayLang === 'en';
+  const qText   = useEN ? (p.qEN || p.q) : p.q;
+  const hasMP   = useEN ? (p.markingPointsEN?.length > 0 || p.markingPoints?.length > 0)
+                        : p.markingPoints?.length > 0;
+  const mpList  = useEN ? (p.markingPointsEN?.length ? p.markingPointsEN : p.markingPoints)
+                        : p.markingPoints;
+  const ansText = useEN ? (p.answerEN || p.answer) : p.answer;
+
+  // Schema content: prefer markingPoints (shows ALL facts), fall back to answer text
+  const schemaContent = hasMP
+    ? renderMarkingPoints(mpList, p.marks||0, p.vocab)
+    : renderAnswer(ansText, p.vocab);
+
+  const writeBtn = hasMP
+    ? `<button onclick="toggleWrite('${qi}','${pi}')" id="wbtn-${qi}-${pi}"
+         class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl transition font-semibold">
+         ✏️ Jawab Sendiri
+       </button>`
+    : '';
+
+  const studentSection = hasMP
+    ? `<div id="write-${qi}-${pi}" class="hidden mt-3">
+        <textarea id="inp-${qi}-${pi}" class="write-area" rows="5" placeholder="Tulis jawapan anda di sini..."></textarea>
+        <button onclick="checkAnswer('${qi}','${pi}')"
+          class="mt-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl font-semibold transition">
+          ✅ Semak Jawapan
+        </button>
+        <div id="res-${qi}-${pi}" class="hidden mt-3"></div>
+      </div>`
+    : '';
+
+  const schemaLabel = hasMP ? '👁 Lihat Skema' : '👁 Lihat Jawapan';
+
+  return `<div class="mb-4 pl-4 border-l-2 border-slate-200">
+    <div class="flex items-start gap-2 mb-2">
+      <span class="text-xs font-bold text-emerald-700 mt-0.5 shrink-0">(${letter})</span>
+      <div class="flex-1">
+        ${renderImages(p.qImgs)}
+        <div class="text-sm text-slate-700 leading-relaxed">${escHtml(qText)}</div>
+      </div>
+      <span class="text-xs font-semibold text-slate-400 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded">${p.marks||0}m</span>
+    </div>
+    <div class="pl-4">
+      ${renderTip(p.tip, p.tipCN, p.tipEN, tipId)}
+      <div class="flex gap-2 flex-wrap">
+        ${writeBtn}
+        <button onclick="toggleAns('${id}')" id="btn-${id}" data-label="${schemaLabel}"
+          class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl transition font-semibold">
+          ${schemaLabel}
+        </button>
+      </div>
+      ${studentSection}
+      <div id="${id}" class="hidden">${schemaContent}</div>
+    </div>
+  </div>`;
+}
+
+function renderQuestion(q, i) {
+  const parts  = q.parts || [];
+  const totalM = parts.length ? parts.reduce((s,p) => s + (p.marks||0), 0) : (q.marks||0);
+  const id     = `ans-${i}-main`;
+  const tipId  = `tip-${i}-main`;
+  const useEN  = _contentLang === 'bilingual' && _displayLang === 'en';
+  const qText  = useEN ? (q.qEN || q.q) : q.q;
+  const mainAns = useEN ? (q.answerEN || q.answer) : q.answer;
+  const tipHtml = parts.length === 0 ? renderTip(q.tip, q.tipCN, q.tipEN, tipId) : '';
+  return `<div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4 shadow-sm">
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg shrink-0">Soalan ${q.no||i+1}</span>
+      <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">${totalM}m</span>
+    </div>
+    ${renderImages(q.qImgs)}
+    ${qText ? `<div class="text-sm font-medium text-slate-700 leading-relaxed mb-4">${escHtml(qText)}</div>` : ''}
+    ${parts.length > 0
+      ? parts.map((p, pi) => renderPart(p, pi, i)).join('')
+      : `<div>
+           ${tipHtml}
+           <button onclick="toggleAns('${id}')" id="btn-${id}" data-label="👁 Lihat Jawapan"
+             class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl transition font-semibold">
+             👁 Lihat Jawapan
+           </button>
+           <div id="${id}" class="hidden">${renderAnswer(mainAns, q.vocab)}</div>
+         </div>`
+    }
+  </div>`;
+}
+
+function toggleAns(id) {
+  const el  = document.getElementById(id);
+  const btn = document.getElementById('btn-' + id);
+  if (!el || !btn) return;
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    btn.textContent = '🙈 Sembunyi';
+  } else {
+    el.classList.add('hidden');
+    btn.textContent = btn.dataset.label || '👁 Lihat Jawapan';
+  }
+}
+
+window.toggleWrite = (qi, pi) => {
+  const el  = document.getElementById(`write-${qi}-${pi}`);
+  const btn = document.getElementById(`wbtn-${qi}-${pi}`);
+  if (!el || !btn) return;
+  if (el.classList.toggle('hidden')) {
+    btn.textContent = '✏️ Jawab Sendiri';
+  } else {
+    btn.textContent = '✏️ Tutup';
+    // Close schema view if it's open
+    const schId  = `ans-${qi}-${pi}`;
+    const schEl  = document.getElementById(schId);
+    const schBtn = document.getElementById(`btn-${schId}`);
+    if (schEl && !schEl.classList.contains('hidden')) {
+      schEl.classList.add('hidden');
+      if (schBtn) schBtn.textContent = schBtn.dataset.label || '👁 Lihat Skema';
+    }
+  }
+};
+
+const STOP_BM = new Set(['yang','dan','atau','dengan','dalam','untuk','kepada','oleh','ini','itu','dari','pada','akan','telah','sudah','juga','bagi','serta','pula','lagi','ialah','adalah','daripada','melalui','terhadap','antara','setiap','dapat','harus','lebih','jika','apabila','kerana','sebab','akibat','iaitu','seperti','menjadi','boleh','tidak','perlu','secara','selepas','sebelum','semua','semasa']);
+const STOP_EN = new Set(['the','and','or','with','in','for','to','of','is','are','was','were','a','an','this','that','by','on','at','from','has','have','had','also','which','when','where','who','its','their','they','been','will','can','may','must','not','but','into','than','then','each','all','any','be','as','it','its','about','such','these','those']);
+
+window.checkAnswer = (qi, pi) => {
+  const p = _qaData?.questions?.[qi]?.parts?.[pi];
+  const useEN  = _contentLang === 'bilingual' && _displayLang === 'en';
+  const mpList = useEN
+    ? (p?.markingPointsEN?.length ? p.markingPointsEN : p?.markingPoints)
+    : p?.markingPoints;
+  if (!mpList?.length) return;
+
+  const stopWords = useEN ? STOP_EN : STOP_BM;
+  const text   = document.getElementById(`inp-${qi}-${pi}`)?.value || '';
+  const tLower = text.toLowerCase();
+  const marks  = p.marks || 0;
+
+  const tWords = tLower.split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9]/g, ''))
+    .filter(w => w.length >= 4 && !stopWords.has(w));
+
+  const results = mpList.map((pt, i) => {
+    const ptLower = pt.toLowerCase();
+    const mWords = ptLower.split(/\s+/)
+      .map(w => w.replace(/[^a-z0-9]/g, ''))
+      .filter(w => w.length >= 4 && !stopWords.has(w));
+    const found = mWords.length > 0 && mWords.some(mw =>
+      tLower.includes(mw) ||
+      tWords.some(tw => mw.includes(tw) && tw.length >= 4)
+    );
+    return { pt, i, found };
+  });
+
+  const matched = results.filter(r => r.found).length;
+  const score   = Math.min(matched, marks);
+  const math    = isMath();
+  const palette = math ? STEP_PALETTE : FACT_PALETTE;
+  const prefix  = math ? 'L' : 'F';
+  const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+  const html = `
+    <div class="border border-slate-200 rounded-xl overflow-hidden">
+      <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+        <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+        <div class="text-xs text-slate-400">${matched} isi ditemui daripada ${p.markingPoints.length}</div>
+      </div>
+      <div class="p-4 space-y-2">
+        ${results.map(({pt, i, found}) => `
+          <div class="flex items-start gap-2">
+            <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
+            <div class="flex-1 text-sm leading-relaxed ${found ? 'text-slate-700' : 'text-slate-300'}">${escHtml(pt)}</div>
+            <span class="shrink-0 text-sm">${found ? '✅' : '❌'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+
+  const resEl = document.getElementById(`res-${qi}-${pi}`);
+  if (resEl) { resEl.innerHTML = html; resEl.classList.remove('hidden'); }
+};
+
+function showAll() {
+  document.querySelectorAll('[id^="ans-"]').forEach(el => {
+    el.classList.remove('hidden');
+    const btn = document.getElementById('btn-' + el.id);
+    if (btn) btn.textContent = '🙈 Sembunyi';
+  });
+}
+
+async function loadQA() {
+  const params = new URLSearchParams(location.search);
+  const qaId   = params.get('id');
+  if (!qaId) {
+    document.getElementById('qa-body').innerHTML = '<div class="text-center text-slate-400 py-16">ID tidak sah.</div>';
+    return;
+  }
+
+  let attempts = 0;
+  while (!window._getQADoc && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  if (window._authReady) await window._authReady;
+
+  let data = null;
+  try { data = await window._getQADoc(qaId); } catch(e) { console.error(e); }
+
+  if (!data) {
+    document.getElementById('qa-body').innerHTML = '<div class="text-center text-slate-400 py-16">Soalan tidak dijumpai.</div>';
+    return;
+  }
+
+  _qaData = data;
+
+  let title = 'Soalan Esei', sub = '';
+  if (data.contentId) {
+    try {
+      const content = await window._getContent(data.contentId);
+      title         = content?.title   || title;
+      _qaSubject    = content?.subject || '';
+      _contentLang  = content?.lang    || 'bm';
+      _displayLang  = _contentLang === 'en' ? 'en' : 'bm';
+      sub           = `${_qaSubject}${_qaSubject && content?.year ? ' · ' : ''}${content?.year||''}`;
+    } catch(e) {}
+  }
+
+  const questions  = data.questions || [];
+  const totalMarks = questions.reduce((s, q) => {
+    const p = q.parts||[];
+    return s + (p.length ? p.reduce((ps, pt) => ps + (pt.marks||0), 0) : (q.marks||0));
+  }, 0);
+
+  document.getElementById('qa-title').textContent = title;
+  document.getElementById('qa-sub').textContent   = sub;
+  document.getElementById('qa-marks').textContent = `${totalMarks}m`;
+  document.title = title + ' – Allite';
+
+  if (!questions.length) {
+    document.getElementById('qa-body').innerHTML = '<div class="text-center text-slate-400 py-16">Tiada soalan.</div>';
+    return;
+  }
+
+  const langToggle = _contentLang === 'bilingual' ? `
+    <div class="flex gap-1 bg-slate-100 rounded-xl p-1">
+      <button id="lang-bm" onclick="switchLang('bm')"
+        class="text-xs px-3 py-1 rounded-lg font-semibold transition ${_displayLang==='bm'?'bg-white text-slate-700 shadow-sm':'text-slate-400'}">BM</button>
+      <button id="lang-en" onclick="switchLang('en')"
+        class="text-xs px-3 py-1 rounded-lg font-semibold transition ${_displayLang==='en'?'bg-white text-slate-700 shadow-sm':'text-slate-400'}">EN</button>
+    </div>` : '';
+
+  document.getElementById('qa-body').innerHTML = `
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      ${langToggle}
+      <button onclick="showAll()"
+        class="text-xs bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-xl transition font-medium ml-auto">
+        👁 Tunjuk Semua Skema
+      </button>
+    </div>
+    <div id="qa-questions">${questions.map((q, i) => renderQuestion(q, i)).join('')}</div>
+  `;
+
+  // Populate tip dataset for tab switching
+  questions.forEach((q, i) => {
+    (q.parts||[]).forEach((p, pi) => {
+      const el = document.getElementById(`tip-text-tip-${i}-${pi}`);
+      if (el) { el.dataset.ms = p.tip||''; el.dataset.zh = p.tipCN||''; el.dataset.en = p.tipEN||''; }
+    });
+    if (!(q.parts||[]).length) {
+      const el = document.getElementById(`tip-text-tip-${i}-main`);
+      if (el) { el.dataset.ms = q.tip||''; el.dataset.zh = q.tipCN||''; el.dataset.en = q.tipEN||''; }
+    }
+  });
+}
+
+loadQA();
+</script>
+</body>
+</html>

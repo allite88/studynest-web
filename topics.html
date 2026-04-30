@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>By Topic – Allite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, collection, getDocs }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  const cfg = {
+    apiKey:"AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
+    authDomain:"allite-platform.firebaseapp.com",
+    projectId:"allite-platform",
+    storageBucket:"allite-platform.firebasestorage.app",
+    messagingSenderId:"989451608043",
+    appId:"1:989451608043:web:c33de8fdcc3383dbc6c3ae"
+  };
+  const app = initializeApp(cfg);
+  const db  = getFirestore(app);
+  const auth= getAuth(app);
+  window._authReady  = new Promise(r => onAuthStateChanged(auth, r));
+  window._signIn     = () => signInWithPopup(auth, new GoogleAuthProvider());
+  window._getDoc     = (path,id) => getDoc(doc(db,path,id));
+  window._getDocs    = () => getDocs(collection(db,'content'));
+</script>
+<style>
+  :root { --green:#4B7A5C; --sage:#E8F2EC; --text:#1C2B22; --muted:#6B7F72; }
+  * { font-family:'Inter',sans-serif; }
+  body { background:#F7FAF7; color:var(--text); }
+  .pill { padding:6px 16px; border-radius:999px; font-size:12px; font-weight:600;
+          cursor:pointer; border:1.5px solid #d1d5db; background:#fff;
+          color:var(--muted); transition:all .15s; white-space:nowrap; }
+  .pill.active { background:var(--green); color:#fff; border-color:var(--green); }
+  .pill:hover:not(.active) { background:var(--sage); border-color:var(--green); color:var(--green); }
+  .kertas-btn { flex:1; padding:14px 10px; border-radius:14px; font-size:14px;
+                font-weight:600; cursor:pointer; border:2px solid #e5e7eb;
+                background:#fff; color:var(--muted); transition:all .15s; text-align:center; }
+  .kertas-btn:hover { border-color:var(--green); color:var(--green); background:var(--sage); }
+  .kertas-btn.active { border-color:var(--green); background:var(--green); color:#fff; }
+  .q-card { background:#fff; border-radius:16px; border:1px solid #e5e7eb;
+            padding:18px; margin-bottom:12px; }
+  .opt-btn { width:100%; text-align:left; padding:10px 14px; border-radius:10px;
+             border:1.5px solid #e5e7eb; background:#fff; font-size:13px;
+             cursor:pointer; transition:all .15s; margin-bottom:6px; display:block; }
+  .opt-btn:hover:not([disabled]) { border-color:var(--green); background:var(--sage); }
+  .opt-btn.correct { border-color:#22c55e; background:#f0fdf4; color:#166534; font-weight:600; }
+  .opt-btn.wrong   { border-color:#ef4444; background:#fef2f2; color:#991b1b; }
+  .opt-btn.reveal  { border-color:#22c55e; background:#f0fdf4; }
+  .ans-box { border-left:3px solid var(--green); background:var(--sage);
+             border-radius:0 12px 12px 0; padding:12px 14px; margin-top:10px;
+             font-size:13px; line-height:1.75; }
+  .badge { font-size:10px; background:#f1f5f9; color:#64748b;
+           padding:2px 8px; border-radius:999px; font-weight:500; }
+  .badge-green { background:var(--sage); color:var(--green); }
+  .scroll-x { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
+  .scroll-x::-webkit-scrollbar { display:none; }
+  .scroll-x { scrollbar-width:none; }
+  .scroll-x > * { flex-shrink:0; }
+  .kw { background:#fef9c3; border-radius:3px; padding:0 2px; font-weight:600; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+  <a href="index.html" class="text-gray-400 hover:text-gray-600 text-lg leading-none">←</a>
+  <div class="h-4 w-px bg-gray-200"></div>
+  <div class="font-semibold text-sm" style="color:var(--text)">By Topic</div>
+  <div id="score-bar" class="hidden ml-auto text-xs font-semibold px-3 py-1 rounded-full"
+       style="background:var(--sage);color:var(--green)"></div>
+</div>
+
+<div class="max-w-2xl mx-auto px-4 pt-5 pb-12">
+
+  <!-- Step 1: Subject -->
+  <div class="mb-5">
+    <div class="text-xs font-semibold mb-2" style="color:var(--muted)">SUBJEK</div>
+    <div class="scroll-x" id="subject-pills">
+      <div class="text-xs text-gray-400">Memuatkan...</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Form -->
+  <div class="mb-5">
+    <div class="text-xs font-semibold mb-2" style="color:var(--muted)">TINGKATAN</div>
+    <div class="flex gap-2">
+      <button class="pill" onclick="selectForm('F4')" id="form-f4">Form 4</button>
+      <button class="pill" onclick="selectForm('F5')" id="form-f5">Form 5</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Bab -->
+  <div class="mb-5">
+    <div class="text-xs font-semibold mb-2" style="color:var(--muted)">BAB</div>
+    <div class="scroll-x" id="bab-pills"></div>
+  </div>
+
+  <!-- Step 4: Kertas -->
+  <div class="mb-6">
+    <div class="text-xs font-semibold mb-2" style="color:var(--muted)">KERTAS</div>
+    <div class="flex gap-3">
+      <button class="kertas-btn active" onclick="selectKertas('k1')" id="k-k1">
+        <div class="text-lg mb-1">📝</div>
+        <div>Kertas 1</div>
+        <div class="text-xs font-normal mt-0.5 opacity-70">MCQ Quiz</div>
+      </button>
+      <button class="kertas-btn" onclick="selectKertas('k2')" id="k-k2">
+        <div class="text-lg mb-1">📖</div>
+        <div>Kertas 2</div>
+        <div class="text-xs font-normal mt-0.5 opacity-70">Soalan Esei</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <button onclick="loadTopicQuestions()"
+    class="w-full py-3 rounded-2xl font-semibold text-sm text-white mb-6 transition"
+    style="background:var(--green)">
+    🔍 Cari Soalan
+  </button>
+
+  <!-- Results -->
+  <div id="topic-body"></div>
+</div>
+
+<script>
+let allContent  = [];
+let selSubj     = '';
+let selForm     = '';
+let selBab      = '';
+let selKertas   = 'k1';
+let k1Questions = [];
+let k2Questions = [];
+let k1Revealed  = {};
+let k1Correct   = 0;
+let k1Answered  = 0;
+
+// ── INIT ──────────────────────────────────────────────────────────
+async function init() {
+  // Wait for Firebase module to finish loading
+  let attempts = 0;
+  while (!window._getDocs && attempts++ < 50) await new Promise(r => setTimeout(r, 50));
+
+  // Build bab pills
+  document.getElementById('bab-pills').innerHTML = Array.from({length:10},(_,i) =>
+    `<button class="pill" onclick="selectBab(${i+1})" id="bab-${i+1}">Bab ${i+1}</button>`
+  ).join('');
+
+  const user = await window._authReady;
+  if (!user) {
+    document.getElementById('topic-body').innerHTML =
+      `<div class="text-center py-16">
+        <div class="text-sm mb-4" style="color:var(--muted)">Log masuk untuk akses soalan.</div>
+        <button onclick="window._signIn()" class="text-white text-sm font-semibold px-5 py-2.5 rounded-xl"
+          style="background:var(--green)">Log Masuk Google</button>
+      </div>`;
+    return;
+  }
+  const snap = await window._getDocs();
+  allContent = snap.docs.map(d => ({id:d.id,...d.data()}));
+  const subjects = [...new Set(allContent.map(c=>c.subject).filter(Boolean))].sort();
+  const pills = document.getElementById('subject-pills');
+  pills.innerHTML = subjects.map(s =>
+    `<button class="pill" onclick="selectSubject('${esc(s)}')" id="subj-${esc(s)}">${esc(s)}</button>`
+  ).join('');
+}
+
+// ── FILTERS ───────────────────────────────────────────────────────
+function selectSubject(s) {
+  selSubj = s;
+  document.querySelectorAll('#subject-pills .pill').forEach(b =>
+    b.classList.toggle('active', b.id === `subj-${s}`));
+}
+function selectForm(f) {
+  selForm = f;
+  ['f4','f5'].forEach(k =>
+    document.getElementById(`form-${k}`)?.classList.toggle('active', `F${k.slice(1)}` === f));
+}
+function selectBab(b) {
+  selBab = b;
+  document.querySelectorAll('#bab-pills .pill').forEach(btn =>
+    btn.classList.toggle('active', btn.id === `bab-${b}`));
+}
+function selectKertas(k) {
+  selKertas = k;
+  document.getElementById('k-k1').classList.toggle('active', k==='k1');
+  document.getElementById('k-k2').classList.toggle('active', k==='k2');
+  document.getElementById('score-bar').classList.toggle('hidden', k!=='k1');
+}
+
+// ── LOAD ──────────────────────────────────────────────────────────
+async function loadTopicQuestions() {
+  document.getElementById('topic-body').innerHTML =
+    `<div class="text-center py-12 text-sm" style="color:var(--muted)">⏳ Memuatkan soalan...</div>`;
+
+  const relevant = selSubj ? allContent.filter(c=>c.subject===selSubj) : allContent;
+  k1Questions=[]; k2Questions=[]; k1Revealed={}; k1Correct=0; k1Answered=0;
+
+  const idToContent = {};
+  const quizIds=new Set(), qaIds=new Set();
+
+  for (const c of relevant) {
+    if (c.slots) for (const slot of Object.values(c.slots)) {
+      if (slot.quizId) { quizIds.add(slot.quizId); idToContent[slot.quizId]=c; }
+    }
+    if (c.quizId) { quizIds.add(c.quizId); idToContent[c.quizId]=c; }
+    if (c.qaId)   { qaIds.add(c.qaId);     idToContent[c.qaId]=c; }
+  }
+
+  for (const qid of quizIds) {
+    try {
+      const snap = await window._getDoc('quizzes', qid);
+      if (!snap.exists()) continue;
+      const src = idToContent[qid]||{};
+      (snap.data().questions||[]).forEach(q => {
+        if ((!selForm||q.form===selForm) && (!selBab||q.bab==selBab))
+          k1Questions.push({...q, _src:`${src.title||''}${src.year?' · '+src.year:''}` });
+      });
+    } catch(e) {}
+  }
+  for (const qid of qaIds) {
+    try {
+      const snap = await window._getDoc('qa', qid);
+      if (!snap.exists()) continue;
+      const src = idToContent[qid]||{};
+      (snap.data().questions||[]).forEach(q => {
+        if ((!selForm||q.form===selForm) && (!selBab||q.bab==selBab))
+          k2Questions.push({...q, _src:`${src.title||''}${src.year?' · '+src.year:''}` });
+      });
+    } catch(e) {}
+  }
+
+  updateScoreBar();
+  renderResults();
+}
+
+// ── RENDER ────────────────────────────────────────────────────────
+function renderResults() {
+  const body = document.getElementById('topic-body');
+  if (selKertas === 'k1') {
+    if (!k1Questions.length) { body.innerHTML = emptyMsg('Tiada soalan Kertas 1 untuk topik ini.'); return; }
+    body.innerHTML = `<div class="text-xs mb-3" style="color:var(--muted)">${k1Questions.length} soalan ditemui</div>`
+      + k1Questions.map((q,i)=>renderK1Card(q,i)).join('');
+  } else {
+    if (!k2Questions.length) { body.innerHTML = emptyMsg('Tiada soalan Kertas 2 untuk topik ini.'); return; }
+    body.innerHTML =
+      `<div class="flex justify-between items-center mb-3">
+        <div class="text-xs" style="color:var(--muted)">${k2Questions.length} soalan ditemui</div>
+        <button onclick="showAllK2()" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition"
+          style="background:var(--sage);color:var(--green)">👁 Tunjuk Semua</button>
+      </div>`
+      + k2Questions.map((q,i)=>renderK2Card(q,i)).join('');
+  }
+}
+
+function emptyMsg(msg) {
+  return `<div class="text-center py-12 text-sm" style="color:var(--muted)">${msg}</div>`;
+}
+
+// ── K1 ────────────────────────────────────────────────────────────
+function renderK1Card(q, i) {
+  const rev = k1Revealed[i];
+  const opts = ['a','b','c','d'].map(l => {
+    if (!q[l]) return '';
+    let cls = 'opt-btn';
+    if (rev !== undefined) {
+      if (l.toUpperCase()===q.answer) cls+=' correct';
+      else if (rev===l) cls+=' wrong';
+      else cls+=' reveal';
+    }
+    return `<button class="${cls}" ${rev!==undefined?'disabled':''} onclick="answerK1(${i},'${l}')">
+      <span class="font-bold mr-2" style="color:var(--green)">${l.toUpperCase()}.</span>${esc(q[l]||'')}
+      ${q[l+'Img']?`<img src="${q[l+'Img']}" class="mt-1 max-h-14 rounded-lg border border-gray-200">`:''}
+    </button>`;
+  }).join('');
+  const formBab = (q.form||q.bab) ? `<span class="badge badge-green">${q.form||''}${q.bab?' B'+q.bab:''}</span>` : '';
+  return `<div class="q-card" id="k1q-${i}">
+    <div class="flex items-start justify-between gap-2 mb-3">
+      <span class="text-xs font-bold px-2 py-0.5 rounded-lg" style="background:var(--sage);color:var(--green)">S${i+1}</span>
+      <div class="flex gap-1 flex-wrap justify-end">${formBab}<span class="badge">${esc(q._src||'')}</span></div>
+    </div>
+    ${q.qImg?`<img src="${q.qImg}" class="max-w-full rounded-xl border border-gray-200 max-h-48 object-contain mb-3">`:''}
+    <div class="text-sm leading-relaxed mb-3 font-medium">${esc(q.q||'')}</div>
+    <div>${opts}</div>
+    ${rev!==undefined && (q.explanation||q.explanationCN||q.explanationEN) ? `
+      <div class="ans-box text-xs mt-2">
+        <div class="flex gap-1 mb-2" id="topic-exp-tabs-${i}">
+          ${q.explanation   ? `<button onclick="topicExpLang(${i},'ms')" id="topic-etab-${i}-ms" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-600 transition">BM</button>` : ''}
+          ${q.explanationCN ? `<button onclick="topicExpLang(${i},'zh')" id="topic-etab-${i}-zh" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 transition">中文</button>` : ''}
+          ${q.explanationEN ? `<button onclick="topicExpLang(${i},'en')" id="topic-etab-${i}-en" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 transition">EN</button>` : ''}
+        </div>
+        <div id="topic-exp-text-${i}">${esc(q.explanation||q.explanationCN||q.explanationEN||'')}</div>
+      </div>` : ''}
+  </div>`;
+}
+
+window.topicExpLang = (i, lang) => {
+  const q = k1Questions[i];
+  if (!q) return;
+  const map = { ms: q.explanation||'', zh: q.explanationCN||'', en: q.explanationEN||'' };
+  const textEl = document.getElementById(`topic-exp-text-${i}`);
+  if (textEl) textEl.textContent = map[lang] || '';
+  ['ms','zh','en'].forEach(l => {
+    const btn = document.getElementById(`topic-etab-${i}-${l}`);
+    if (!btn) return;
+    btn.className = l === lang
+      ? 'px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-600 text-white transition'
+      : 'px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 transition';
+  });
+};
+
+window.answerK1 = (i, l) => {
+  if (k1Revealed[i]!==undefined) return;
+  k1Revealed[i]=l; k1Answered++;
+  if (l.toUpperCase()===k1Questions[i].answer) k1Correct++;
+  updateScoreBar(); renderResults();
+  setTimeout(()=>document.getElementById(`k1q-${i}`)?.scrollIntoView({block:'nearest'}),50);
+};
+
+function updateScoreBar() {
+  const bar = document.getElementById('score-bar');
+  if (selKertas!=='k1'||!k1Answered) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  bar.textContent = `${k1Correct}/${k1Answered} betul`;
+}
+
+// ── K2 ────────────────────────────────────────────────────────────
+function renderK2Card(q, i) {
+  const parts = q.parts||[];
+  const totalM = parts.length ? parts.reduce((s,p)=>s+(p.marks||0),0) : (q.marks||0);
+  const formBab = (q.form||q.bab) ? `<span class="badge badge-green">${q.form||''}${q.bab?' B'+q.bab:''}</span>` : '';
+  return `<div class="q-card">
+    <div class="flex items-start justify-between gap-2 mb-3">
+      <span class="text-xs font-bold px-2 py-0.5 rounded-lg" style="background:#f0fdf4;color:#166534">S${q.no||i+1} · ${totalM}m</span>
+      <div class="flex gap-1 flex-wrap justify-end">${formBab}<span class="badge">${esc(q._src||'')}</span></div>
+    </div>
+    ${renderImgs(q.qImgs)}
+    ${q.q?`<div class="text-sm font-medium leading-relaxed mb-3">${esc(q.q)}</div>`:''}
+    ${parts.length>0 ? parts.map((p,pi)=>renderK2Part(p,pi,i)).join('') : renderK2Ans(q.answer,q.vocab,`k2a-${i}-m`)}
+  </div>`;
+}
+
+function renderK2Part(p, pi, qi) {
+  const letter = String.fromCharCode(97+pi);
+  return `<div class="mb-3 pl-4 border-l-2 border-gray-200">
+    <div class="flex items-start gap-2 mb-1">
+      <span class="text-xs font-bold mt-0.5 shrink-0" style="color:#3b82f6">(${letter})</span>
+      <div class="flex-1">
+        ${renderImgs(p.qImgs)}
+        <div class="text-sm leading-relaxed">${esc(p.q||'')}</div>
+      </div>
+      <span class="text-xs shrink-0" style="color:var(--muted)">[${p.marks||0}m]</span>
+    </div>
+    <div class="pl-4">${renderK2Ans(p.answer, p.vocab, `k2a-${qi}-${pi}`)}</div>
+  </div>`;
+}
+
+function renderK2Ans(answer, vocab, id) {
+  if (!answer) return '';
+  return `<button onclick="toggleK2('${id}')"
+    class="text-xs font-semibold px-3 py-1.5 rounded-xl transition"
+    style="background:var(--sage);color:var(--green);border:1px solid #c6dece">
+    👁 Lihat Jawapan
+  </button>
+  <div id="${id}" class="hidden">
+    <div class="ans-box">${answer}${renderVocab(vocab)}</div>
+  </div>`;
+}
+
+function renderVocab(vocab) {
+  if (!vocab?.length) return '';
+  return `<div class="mt-3 pt-3 border-t border-green-200">
+    <div class="text-xs font-semibold mb-2" style="color:var(--muted)">📖 Kosa Kata</div>
+    <table class="text-xs w-full">
+      ${vocab.map(v=>`<tr><td class="pr-4 py-0.5 font-medium">${esc(v.term)}</td><td style="color:var(--muted)">${esc(v.meaning)}</td></tr>`).join('')}
+    </table>
+  </div>`;
+}
+
+function renderImgs(imgs) {
+  if (!imgs?.length) return '';
+  return `<div class="flex flex-wrap gap-2 mb-3">${imgs.map(s=>`<img src="${s}" class="max-w-full rounded-xl border border-gray-200 max-h-48 object-contain">`).join('')}</div>`;
+}
+
+window.toggleK2 = (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const btn = el.previousElementSibling;
+  if (el.classList.toggle('hidden')) {
+    btn.innerHTML = '👁 Lihat Jawapan';
+  } else {
+    btn.innerHTML = '🙈 Sembunyi';
+  }
+};
+
+window.showAllK2 = () => {
+  document.querySelectorAll('[id^="k2a-"]').forEach(el => {
+    el.classList.remove('hidden');
+    const btn = el.previousElementSibling;
+    if (btn) btn.innerHTML = '🙈 Sembunyi';
+  });
+};
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>
