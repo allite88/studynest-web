@@ -1293,59 +1293,20 @@
 
     <!-- Pricing cards -->
     <div id="pricing-cards" class="mb-12">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+      <!-- Main: Pro + Sprint (large cards) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
 
-        <!-- CARD 1: FREE -->
-        <div class="card p-5 flex flex-col">
-          <div class="font-bold text-sm mb-1" style="color:var(--text)">Free</div>
-          <div class="mb-1">
-            <span class="text-3xl font-extrabold" style="color:var(--text)">RM0</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">selamanya</span>
-          </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba Allite dan lihat cara sistem markah berfungsi.</p>
-          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Trial papers terpilih</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Quiz terhad</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 demo 1–2 soalan</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Preview By Topic</li>
-          </ul>
-          <button onclick="if(!window._getUid()){window._login()}else{nav('papers')}"
-            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Mula Percuma
-          </button>
-        </div>
-
-        <!-- CARD 2: TRIAL PASS -->
-        <div class="card p-5 flex flex-col">
-          <div class="font-bold text-sm mb-1" style="color:var(--text)">Trial Pass</div>
-          <div class="mb-1">
-            <span class="text-3xl font-extrabold" style="color:var(--text)">RM19</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">30 hari</span>
-          </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba latihan penuh sebelum langgan tahunan.</p>
-          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Akses Quiz 2025</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Jawapan asas</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 practice terhad</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Trial papers pilihan</li>
-          </ul>
-          <button onclick="if(!window._getUid()){window._login()}else{startPayment('trial_pass',this)}"
-            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Cuba 30 Hari
-          </button>
-        </div>
-
-        <!-- CARD 3: PRO YEARLY (HIGHLIGHTED) -->
-        <div class="card p-5 flex flex-col lg:col-span-1" style="border:2.5px solid var(--green);box-shadow:0 8px 24px rgba(75,122,92,.15)">
+        <!-- CARD 1: PRO YEARLY (HIGHLIGHTED) -->
+        <div class="card p-5 flex flex-col" style="border:2.5px solid var(--green);box-shadow:0 8px 24px rgba(75,122,92,.15)">
           <div class="flex items-center gap-2 mb-1">
             <span class="font-bold text-sm" style="color:var(--text)">Pro</span>
-            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--sage);color:var(--green)">PALING POPULAR</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--sage);color:var(--green)">PALING BERBALOI</span>
           </div>
           <div class="mb-1">
             <span class="text-3xl font-extrabold" style="color:var(--text)">RM129</span>
             <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
           </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Pelan utama untuk pelajar SPM yang mahu latihan konsisten.</p>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar SPM yang mahu latihan konsisten sepanjang tahun.</p>
           <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
             <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Semua trial papers</li>
             <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Semua Quiz</li>
@@ -1362,32 +1323,10 @@
           </button>
         </div>
 
-        <!-- CARD 4: PREMIUM YEARLY -->
-        <div class="card p-5 flex flex-col">
-          <div class="font-bold text-sm mb-1" style="color:var(--text)">Premium</div>
-          <div class="mb-1">
-            <span class="text-3xl font-extrabold" style="color:var(--text)">RM199</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
-          </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar yang mahu review lebih mendalam. Advanced review features released gradually.</p>
-          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Semua dalam Pro</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Review jawapan lanjutan</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>KBAT / jawapan kompleks</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Predicted questions</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Personal study plan</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Priority new content</li>
-          </ul>
-          <button onclick="alert('Premium sedang dalam pembangunan. Daftar sekarang untuk akses awal!')"
-            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Join Waitlist
-          </button>
-        </div>
-
-        <!-- CARD 5: SPRINT PACK -->
+        <!-- CARD 2: SPRINT PACK (LAST-MINUTE) -->
         <div class="card p-5 flex flex-col">
           <div class="flex items-center gap-2 mb-1">
-            <span class="font-bold text-sm" style="color:var(--text)">Sprint Pack</span>
+            <span class="font-bold text-sm" style="color:var(--text)">Sejarah Sprint Pack</span>
             <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#fef3c7;color:#92400e">LAST-MINUTE</span>
           </div>
           <div class="mb-1">
@@ -1406,6 +1345,68 @@
           <button onclick="if(!window._getUid()){window._login()}else{startPayment('sejarah_sprint',this)}"
             class="btn-amber w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
             Buka Sprint Pack
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Secondary: Free + Trial + Premium (smaller cards) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
+
+        <!-- CARD 1: FREE -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Free</div>
+          <div class="mb-1">
+            <span class="text-2xl font-extrabold" style="color:var(--text)">RM0</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">selamanya</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba Allite dan lihat cara sistem markah berfungsi.</p>
+          <ul class="space-y-1 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Trial papers terpilih</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Quiz terhad</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 demo 1–2 soalan</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{nav('papers')}"
+            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Mula Percuma
+          </button>
+        </div>
+
+        <!-- CARD 2: TRIAL PASS -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Trial Pass</div>
+          <div class="mb-1">
+            <span class="text-2xl font-extrabold" style="color:var(--text)">RM19</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">30 hari</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba latihan penuh sebelum langgan tahunan.</p>
+          <ul class="space-y-1 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Akses Quiz 2025</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Jawapan asas</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 practice terhad</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{startPayment('trial_pass',this)}"
+            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Cuba 30 Hari
+          </button>
+        </div>
+
+        <!-- CARD 3: PREMIUM YEARLY -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Premium</div>
+          <div class="mb-1">
+            <span class="text-2xl font-extrabold" style="color:var(--text)">RM199</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar yang mahu review lebih mendalam.</p>
+          <ul class="space-y-1 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Semua dalam Pro</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Review lanjutan</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Predicted questions</li>
+          </ul>
+          <button onclick="alert('Premium sedang dalam pembangunan. Daftar sekarang untuk akses awal!')"
+            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Join Waitlist
           </button>
         </div>
 
@@ -1475,11 +1476,11 @@
             <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
           </tr>
           <tr class="border-t" style="border-color:#E4EDE6">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">AI essay review</td>
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Review lanjutan</td>
             <td class="text-center text-xs" style="color:var(--muted)">—</td>
             <td class="text-center text-xs" style="color:var(--muted)">—</td>
             <td class="text-center text-xs" style="color:var(--muted)">—</td>
-            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Coming soon</td>
             <td class="text-center text-xs" style="color:var(--muted)">—</td>
           </tr>
           <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
@@ -1645,17 +1646,17 @@ window._onAuth = function(user, userData, needsProfile) {
     userChip.classList.remove('hidden'); userChip.classList.add('flex');
     document.getElementById('user-avatar').src = user.photoURL||'';
     if (IS_PREMIUM) {
-      badgePrem.classList.remove('hidden');
+      badgePrem && badgePrem.classList.remove('hidden');
       btnUpgrade && btnUpgrade.classList.add('hidden');
     } else {
-      badgePrem.classList.add('hidden');
+      badgePrem && badgePrem.classList.add('hidden');
       btnUpgrade && btnUpgrade.classList.remove('hidden');
     }
     if (needsProfile) showRegModal(user.displayName || '');
   } else {
     btnLogin.classList.remove('hidden'); btnLogin.classList.add('flex');
     userChip.classList.add('hidden'); userChip.classList.remove('flex');
-    badgePrem.classList.add('hidden');
+    badgePrem && badgePrem.classList.add('hidden');
   }
   if (!document.getElementById('pg-notes').classList.contains('hidden'))   loadNotesPage();
   if (!document.getElementById('pg-papers').classList.contains('hidden'))  renderPapers();
@@ -1751,6 +1752,17 @@ async function renderPapers() {
   const allPapers = await loadPapersData();
   const q = (document.getElementById('search').value||'').toLowerCase().trim();
 
+  // Pre-check user access for restricted papers
+  window._checkedPapersAccess = {};
+  const uid = window._getUid?.();
+  if (uid) {
+    for (const p of allPapers) {
+      if (p.access === 'members') {
+        window._checkedPapersAccess[p.id] = await window._hasSubjectAccess?.(_paperSubject, 'papers') || false;
+      }
+    }
+  }
+
   const filtered = allPapers.filter(p =>
     p.subject === _paperSubject &&
     (!activeYear || p.year === activeYear) &&
@@ -1770,7 +1782,8 @@ function paperCard(p) {
   const slots = p.slots || {};
   const SLOT_LABELS = { k1:'K1', k2:'K2', k12:'K1&2', view:'View' };
   const isMember = p.access === 'members';
-  const userHasAccess = !isMember || userSubjects.includes(p.subject);
+  // Use pre-checked access from renderPapers, fallback to old userSubjects logic
+  const userHasAccess = !isMember || window._checkedPapersAccess?.[p.id] || userSubjects.includes(p.subject);
 
   // Locked card — show unlock prompt
   if (isMember && !userHasAccess) {

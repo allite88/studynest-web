@@ -91,13 +91,14 @@ exports.handler = async (event) => {
   } else if (plan === 'pro_yearly') {
     purchases.pro_yearly = true;
     purchases.pro_yearly_expiresAt = now + oneYear;
-    purchases.all_access = true; // Pro includes full access
+    // Do NOT set all_access — let frontend check pro_yearly flag directly
 
   } else if (plan === 'premium_yearly') {
     purchases.premium_yearly = true;
     purchases.premium_yearly_expiresAt = now + oneYear;
     purchases.pro_yearly = true; // Premium includes Pro
-    purchases.all_access = true; // Premium includes full access
+    purchases.pro_yearly_expiresAt = now + oneYear; // Also set Pro's expiry
+    // Do NOT set all_access — let frontend check premium_yearly flag directly
 
   } else if (plan === 'sejarah_sprint') {
     purchases.sejarah_sprint = true;
