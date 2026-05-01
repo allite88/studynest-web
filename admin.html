@@ -2077,6 +2077,124 @@ window.k2SaveMarking = async () => {
   }
 };
 
+// ── K2 MARKING BUILDER HELPERS ─────────────────────────────────────
+/**
+ * 获取数据版本和答题类型（新增 schemaVersion 2 支持）
+ */
+function getSchemaVersion(question) {
+  return question.schemaVersion || 1;
+}
+
+function getPartAnswerType(part) {
+  if (part.answerType) return part.answerType;
+  if (part.markingUnits?.length) return 'point_based';
+  if (part.steps?.length) return 'calculation_steps';
+  if (part.table?.rows?.length) return 'table_cells';
+  if (part.rubric?.bands?.length) return 'rubric_based';
+  return 'point_based';
+}
+
+function getPartCompletenessWarnings(part) {
+  const warnings = [];
+  const type = getPartAnswerType(part);
+  if (!part.marks || part.marks <= 0) warnings.push('缺少分数');
+  if (!part.answerType) warnings.push('未设置 answerType');
+  if (type === 'point_based' && !part.markingUnits?.length && !part.markingPoints?.length) {
+    warnings.push('无标记单位');
+  }
+  if (type === 'calculation_steps' && !part.steps?.length) {
+    warnings.push('无计算步骤');
+  }
+  return warnings;
+}
+
+// K2 编辑函数 — 所有修改后调用 renderQAList() 来重新渲染整个展开卡片
+window.qaeAddMarkingUnit = (qi, pi) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]) return;
+  const part = qaeQuestions[qi].parts[pi];
+  if (!part.markingUnits) part.markingUnits = [];
+  part.markingUnits.push({ text: '', marks: 1, aliases: [], intent: '', feedbackIfMissing: '' });
+  renderQAList();
+};
+
+window.qaeSetMarkingUnit = (qi, pi, ui, field, value) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]?.markingUnits?.[ui]) return;
+  const unit = qaeQuestions[qi].parts[pi].markingUnits[ui];
+  unit[field] = value;
+  renderQAList();
+};
+
+window.qaeDelMarkingUnit = (qi, pi, ui) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]?.markingUnits?.[ui]) return;
+  qaeQuestions[qi].parts[pi].markingUnits.splice(ui, 1);
+  renderQAList();
+};
+
+window.qaeConvertPointsToUnits = (qi, pi) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]) return;
+  const part = qaeQuestions[qi].parts[pi];
+  if (!part.markingPoints?.length) return;
+  part.markingUnits = (part.markingPoints || []).map((point, idx) => ({
+    text: point,
+    marks: 1,
+    aliases: [],
+    intent: '',
+    feedbackIfMissing: `缺少: ${point}`
+  }));
+  renderQAList();
+};
+
+window.qaeAddStep = (qi, pi) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]) return;
+  const part = qaeQuestions[qi].parts[pi];
+  if (!part.steps) part.steps = [];
+  part.steps.push({ label: '', expected: '', marks: 1 });
+  renderQAList();
+};
+
+window.qaeSetStep = (qi, pi, si, field, value) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]?.steps?.[si]) return;
+  qaeQuestions[qi].parts[pi].steps[si][field] = value;
+  renderQAList();
+};
+
+window.qaeDelStep = (qi, pi, si) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]?.steps?.[si]) return;
+  qaeQuestions[qi].parts[pi].steps.splice(si, 1);
+  renderQAList();
+};
+
+window.qaeSetPartAnswerType = (qi, pi, type) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]) return;
+  qaeQuestions[qi].parts[pi].answerType = type;
+  const part = qaeQuestions[qi].parts[pi];
+  if (type === 'point_based' && !part.markingUnits && !part.markingPoints) {
+    part.markingUnits = [];
+  }
+  if (type === 'calculation_steps' && !part.steps) {
+    part.steps = [];
+  }
+  renderQAList();
+};
+
+window.qaeSetRulesField = (qi, pi, field, value) => {
+  if (!qaeQuestions[qi]?.parts?.[pi]) return;
+  const part = qaeQuestions[qi].parts[pi];
+  if (!part.rules) part.rules = {};
+
+  // Normalize field names: ecf, noDoubleCounting, requireUnit (lowercase)
+  let normalizedField = field;
+  const fieldMap = { 'ECF': 'ecf', 'NoDoubleCount': 'noDoubleCounting', 'RequireUnits': 'requireUnit' };
+  if (fieldMap[field]) normalizedField = fieldMap[field];
+
+  if (value === null || value === undefined || value === '') {
+    delete part.rules[normalizedField];
+  } else {
+    part.rules[normalizedField] = value;
+  }
+  renderQAList();
+};
+
 // ── Q&A EDITOR ────────────────────────────────────────────────────
 let qaeContentId = null, qaeQAId = null, qaeQuestions = [], qaeExpanded = null;
 
@@ -2125,11 +2243,25 @@ window.saveQA = async () => {
     const uploaded = await uploadQuestionImgs(qaeQuestions, prefix);
     qaeQuestions = uploaded;
     btn.textContent = 'Saving...';
+    // 检查是否有新的 schemaVersion 2 字段
+    const hasV2Fields = qaeQuestions.some(q =>
+      q.parts?.some(p => p.answerType || p.markingUnits?.length || p.steps?.length)
+    );
+    const saveData = {
+      questions: qaeQuestions,
+      updatedAt: serverTimestamp()
+    };
+    if (hasV2Fields) {
+      saveData.schemaVersion = 2;
+    }
+
     if (qaeQAId) {
-      await updateDoc(doc(db,'qa',qaeQAId), { questions: qaeQuestions, updatedAt: serverTimestamp() });
+      await updateDoc(doc(db,'qa',qaeQAId), saveData);
     } else {
       const ref = await addDoc(collection(db,'qa'), {
-        contentId: qaeContentId, questions: qaeQuestions, createdAt: serverTimestamp()
+        contentId: qaeContentId,
+        ...saveData,
+        createdAt: serverTimestamp()
       });
       qaeQAId = ref.id;
       await updateDoc(doc(db,'content',qaeContentId), { qaId: qaeQAId });
@@ -2258,14 +2390,177 @@ function renderSubPart(qi, pi, p) {
         <input type="file" accept="image/*" class="hidden" id="partimg-${qi}-${pi}" onchange="filePartImg(this,${qi},${pi})">
       </div>
     </div>
-    <div class="text-xs font-semibold text-slate-400 mb-1">Jawapan Model ${bil?'(BM)':''}</div>
+    <div class="mt-2">
+      <div class="text-xs font-semibold text-slate-400 mb-1">答题类型 (schemaVersion 2)</div>
+      <select class="field text-sm" onchange="qaeSetPartAnswerType(${qi},${pi},this.value)" value="${p.answerType || 'point_based'}">
+        <option value="point_based" ${(p.answerType || 'point_based') === 'point_based' ? 'selected' : ''}>Point Based</option>
+        <option value="keyword_concept" ${p.answerType === 'keyword_concept' ? 'selected' : ''}>Keyword Concept</option>
+        <option value="calculation_steps" ${p.answerType === 'calculation_steps' ? 'selected' : ''}>Calculation Steps</option>
+        <option value="table_cells" ${p.answerType === 'table_cells' ? 'selected' : ''}>Table Cells</option>
+        <option value="formula" ${p.answerType === 'formula' ? 'selected' : ''}>Formula</option>
+        <option value="rubric_based" ${p.answerType === 'rubric_based' ? 'selected' : ''}>Rubric Based</option>
+      </select>
+    </div>
+
+    <div class="text-xs font-semibold text-slate-400 mb-1 mt-2">Jawapan Model ${bil?'(BM)':''}</div>
     ${richAnswerField(p.answer||'', `qaeSetPart(${qi},${pi},'answer',this.innerHTML)`)}
     ${bil?`<div class="text-xs font-semibold text-slate-400 mb-1 mt-2">Model Answer (EN)</div>
     ${richAnswerField(p.answerEN||'', `qaeSetPart(${qi},${pi},'answerEN',this.innerHTML)`)}`:''}
+    ${p.schemaVersion === 2 || p.answerType ? `<div class="mt-2">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Model Answer (schemaVersion 2)</div>
+      <textarea class="field text-sm w-full" rows="2" placeholder="Jawapan model untuk perbandingan otomatis..." oninput="qaeSetPart(${qi},${pi},'modelAnswer',this.value)">${escHtml(p.modelAnswer||'')}</textarea>
+    </div>` : ''}
     ${vocabEditorSection(p.vocab||[], qi, pi)}
     <input class="field text-sm w-full mt-2" type="text" value="${escAttr((p.keywords||[]).join(', '))}" oninput="qaeSetPart(${qi},${pi},'keywords',this.value.split(',').map(k=>k.trim()).filter(Boolean))" placeholder="keywords: highlight sahaja (3-5 perkataan)">
-    <div class="mt-2">
-      <div class="text-xs font-semibold text-slate-400 mb-1">Marking Points – BM${bil?' (BM)':''} (1 baris = 1 fakta)</div>
+
+    ${(p.answerType === 'point_based' || p.answerType === 'keyword_concept' || !p.answerType) ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-semibold text-slate-400">⭐ Marking Units (新)</div>
+        <button onclick="qaeAddMarkingUnit(${qi},${pi})" class="text-xs bg-green-100 text-green-700 hover:bg-green-200 px-2 py-0.5 rounded">+ 单位</button>
+      </div>
+      ${(p.markingUnits || []).map((unit, ui) => `
+        <div class="bg-white border border-slate-200 rounded p-2 mb-1 text-xs space-y-1">
+          <div class="flex gap-1">
+            <input type="text" class="field flex-1" placeholder="标记点内容" value="${escAttr(unit.text || '')}"
+              onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'text',this.value)">
+            <input type="number" class="field w-12" placeholder="分" value="${unit.marks || 1}"
+              onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'marks',parseInt(this.value))">
+            <button onclick="qaeDelMarkingUnit(${qi},${pi},${ui})" class="text-red-500">✕</button>
+          </div>
+          <input type="text" class="field w-full text-xs" placeholder="别名（逗号分隔）"
+            value="${escAttr((unit.aliases || []).join(', '))}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'aliases',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+          <input type="text" class="field w-full text-xs" placeholder="目的/意图 (intent)"
+            value="${escAttr(unit.intent || '')}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'intent',this.value)">
+          <input type="text" class="field w-full text-xs" placeholder="如缺少反馈 (feedbackIfMissing)"
+            value="${escAttr(unit.feedbackIfMissing || '')}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'feedbackIfMissing',this.value)">
+          <input type="text" class="field w-full text-xs" placeholder="必须有的词 (mustHave，逗号分隔)"
+            value="${escAttr((unit.mustHave||[]).join(', '))}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'mustHave',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+          <input type="text" class="field w-full text-xs" placeholder="加分词 (niceToHave，逗号分隔)"
+            value="${escAttr((unit.niceToHave||[]).join(', '))}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'niceToHave',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+          <input type="text" class="field w-full text-xs" placeholder="禁词 (forbidden，逗号分隔)"
+            value="${escAttr((unit.forbidden||[]).join(', '))}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'forbidden',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+          <input type="text" class="field w-full text-xs" placeholder="分组ID (group，相同ID去重计分)"
+            value="${escAttr(unit.group || '')}"
+            onchange="qaeSetMarkingUnit(${qi},${pi},${ui},'group',this.value)">
+        </div>
+      `).join('')}
+      ${p.markingPoints?.length && !p.markingUnits?.length ? `
+        <button onclick="qaeConvertPointsToUnits(${qi},${pi})" class="text-xs text-green-600 mt-1">↓ 转换旧标记点</button>
+      ` : ''}
+    </div>
+    ` : ''}
+
+    ${p.answerType === 'calculation_steps' ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-semibold text-slate-400">📐 计算步骤</div>
+        <button onclick="qaeAddStep(${qi},${pi})" class="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-0.5 rounded">+ 步骤</button>
+      </div>
+      ${(p.steps || []).map((step, si) => `
+        <div class="bg-white border border-slate-200 rounded p-2 mb-1 text-xs">
+          <input type="text" class="field w-full mb-1" placeholder="标签（如 Formula）" value="${escAttr(step.label || '')}"
+            onchange="qaeSetStep(${qi},${pi},${si},'label',this.value)">
+          <input type="text" class="field w-full mb-1" placeholder="预期答案" value="${escAttr(step.expected || '')}"
+            onchange="qaeSetStep(${qi},${pi},${si},'expected',this.value)">
+          <div class="flex gap-1">
+            <input type="number" class="field flex-1" placeholder="分" value="${step.marks || 1}"
+              onchange="qaeSetStep(${qi},${pi},${si},'marks',parseInt(this.value))">
+            <button onclick="qaeDelStep(${qi},${pi},${si})" class="text-red-500">✕</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ` : ''}
+
+    ${(p.answerType === 'point_based' || p.answerType === 'keyword_concept' || !p.answerType) ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-2">⚙️ K2 规则和分组</div>
+      <div class="space-y-2">
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Max Marks (最大分数):</label>
+          <input type="number" class="field text-sm w-full" value="${(p.rules?.maxMarks) || ''}"
+            oninput="qaeSetRulesField(${qi},${pi},'maxMarks',parseInt(this.value)||null)" placeholder="如留空则默认使用总分">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Must Have (必须有):</label>
+          <input type="text" class="field text-sm w-full" value="${escAttr((p.mustHave||[]).join(', '))}"
+            onchange="qaeSetPartAndRender(${qi},${pi},'mustHave',this.value.split(',').map(s=>s.trim()).filter(Boolean))" placeholder="逗号分隔，所有都必须找到">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Nice to Have (加分):</label>
+          <input type="text" class="field text-sm w-full" value="${escAttr((p.niceToHave||[]).join(', '))}"
+            onchange="qaeSetPartAndRender(${qi},${pi},'niceToHave',this.value.split(',').map(s=>s.trim()).filter(Boolean))" placeholder="逗号分隔，找到了加分">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Forbidden (禁词):</label>
+          <input type="text" class="field text-sm w-full" value="${escAttr((p.forbidden||[]).join(', '))}"
+            onchange="qaeSetPartAndRender(${qi},${pi},'forbidden',this.value.split(',').map(s=>s.trim()).filter(Boolean))" placeholder="逗号分隔，出现了扣分或拒收">
+        </div>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" ${p.group ? 'checked' : ''} onchange="qaeSetPartAndRender(${qi},${pi},'group',this.checked)">
+            <span>Group (分组计分)</span>
+          </label>
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" ${p.noDoubleCount ? 'checked' : ''} onchange="qaeSetPartAndRender(${qi},${pi},'noDoubleCount',this.checked)">
+            <span>No Double Count (不重复计分)</span>
+          </label>
+        </div>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" ${p.rules?.ecf ? 'checked' : ''} onchange="qaeSetRulesField(${qi},${pi},'ecf',this.checked)">
+            <span>ECF (错误承接)</span>
+          </label>
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" ${p.rules?.caseSensitive ? 'checked' : ''} onchange="qaeSetRulesField(${qi},${pi},'caseSensitive',this.checked)">
+            <span>Case Sensitive (区分大小写)</span>
+          </label>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Require Unit (需要包含的单位):</label>
+          <input type="text" class="field text-sm w-full" value="${escAttr((p.rules?.requireUnit||[]).join(', '))}"
+            onchange="(function(){ const u = this.value.split(',').map(s=>s.trim()).filter(Boolean); qaeSetRulesField(${qi},${pi},'requireUnit',u); }).call(this)" placeholder="逗号分隔，这些单位必须在答案中找到">
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    ${p.answerType === 'table_cells' ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-2">📋 Table 单元格</div>
+      <div class="text-xs text-slate-500 mb-2">JSON 格式。cells 可以是字符串或对象 {expected, aliases, marks}，按 Tab 或离焦保存</div>
+      <textarea class="field text-sm w-full" rows="8" placeholder='{"rows":[{"label":"Row 1","cells":["text",{"expected":"value","aliases":[],"marks":1}]}],"columns":["Col1","Col2"]}'
+        onchange="try{qaeSetPartAndRender(${qi},${pi},'table',this.value ? JSON.parse(this.value.trim() || '{}') : {})}catch(e){alert('JSON 错误: '+e.message)}">${escHtml(JSON.stringify(p.table || {}, null, 2))}</textarea>
+    </div>
+    ` : ''}
+
+    ${p.answerType === 'rubric_based' ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-2">⭐ Rubric 评分标准</div>
+      <div class="text-xs text-slate-500 mb-2">JSON 格式。每个 band 用 minMarks/maxMarks（数字）或 mark（字符串），criteria 是数组或字符串，按 Tab 或离焦保存</div>
+      <textarea class="field text-sm w-full" rows="8" placeholder='{"bands":[{"minMarks":9,"maxMarks":10,"description":"Excellent","criteria":["All points","Complete"],"keywords":["word1"]}]}'
+        onchange="try{qaeSetPartAndRender(${qi},${pi},'rubric',this.value ? JSON.parse(this.value.trim() || '{}') : {})}catch(e){alert('JSON 错误: '+e.message)}">${escHtml(JSON.stringify(p.rubric || {}, null, 2))}</textarea>
+    </div>
+    ` : ''}
+
+    ${p.answerType === 'diagram_label' ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-2">🖼 图表标签</div>
+      <div class="text-xs text-slate-500 mb-2">JSON 格式，每个 label 有 id 和 expectedText</div>
+      <textarea class="field text-sm w-full" rows="6" placeholder='{"imageUrl":"image-url","labels":[{"id":"A","expectedText":"Label A"},{"id":"B","expectedText":"Label B"}]}'
+        onchange="try{qaeSetPartAndRender(${qi},${pi},'diagram',this.value ? JSON.parse(this.value.trim() || '{}') : {})}catch(e){alert('JSON 错误: '+e.message)}">${escHtml(JSON.stringify(p.diagram || {}, null, 2))}</textarea>
+    </div>
+    ` : ''}
+
+    <div class="mt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-1">Marking Points – BM${bil?' (BM)':''} (旧格式，新数据请用 Marking Units)</div>
       <textarea class="field text-sm" rows="5" placeholder="Contoh:&#10;Raja Brooke melaksanakan sistem pentadbiran yang cekap&#10;..." oninput="qaeSetPart(${qi},${pi},'markingPoints',this.value.split('\\n').map(k=>k.trim()).filter(Boolean))">${escHtml((p.markingPoints||[]).join('\n'))}</textarea>
     </div>
     ${bil?`<div class="mt-2">
@@ -2284,6 +2579,7 @@ function renderSubPart(qi, pi, p) {
 window.toggleQACard  = (i) => { qaeExpanded = qaeExpanded===i ? null : i; renderQAList(); };
 window.qaeSet        = (i,f,v) => { if (qaeQuestions[i]) qaeQuestions[i][f]=v; };
 window.qaeSetPart    = (qi,pi,f,v) => { if (qaeQuestions[qi]?.parts?.[pi]) qaeQuestions[qi].parts[pi][f]=v; };
+window.qaeSetPartAndRender = (qi,pi,f,v) => { qaeSetPart(qi,pi,f,v); renderQAList(); };
 window.qaeAddPart    = (qi) => { if(!qaeQuestions[qi].parts) qaeQuestions[qi].parts=[]; qaeQuestions[qi].parts.push({q:'',qEN:'',qImgs:[],marks:2,answer:'',answerEN:'',keywords:[],markingPoints:[],markingPointsEN:[],vocab:[],tip:'',tipCN:'',tipEN:''}); renderQAList(); };
 window.qaeDelPart    = (qi,pi) => { qaeQuestions[qi].parts.splice(pi,1); renderQAList(); };
 
@@ -2457,27 +2753,50 @@ window.doImportJSON = () => {
     return;
   }
 
-  // Smart merge: always merge by question no, never wipe existing data
+  // Smart merge: preserve ALL fields (both v1 and v2), never wipe existing data
   const existingByNo = {};
   qaeQuestions.forEach((q, i) => { existingByNo[q.no ?? i + 1] = q; });
 
   const mergePart = (ep, sp) => {
     if (!sp) return ep;
-    return {
-      ...ep,
-      q:               sp.q               || ep.q               || '',
-      qEN:             sp.qEN             || ep.qEN             || '',
-      marks:           sp.marks           ?? ep.marks           ?? 2,
-      answer:          sp.answer          || ep.answer          || '',
-      answerEN:        sp.answerEN        || ep.answerEN        || '',
-      keywords:        (Array.isArray(sp.keywords)        && sp.keywords.length)        ? sp.keywords        : (ep.keywords        ?? []),
-      markingPoints:   (Array.isArray(sp.markingPoints)   && sp.markingPoints.length)   ? sp.markingPoints   : (ep.markingPoints   ?? []),
-      markingPointsEN: (Array.isArray(sp.markingPointsEN) && sp.markingPointsEN.length) ? sp.markingPointsEN : (ep.markingPointsEN ?? []),
-      vocab:           (Array.isArray(sp.vocab) && sp.vocab.length) ? sp.vocab.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''})) : (ep.vocab ?? []),
-      tip:             sp.tip   || ep.tip   || '',
-      tipCN:           sp.tipCN || ep.tipCN || '',
-      tipEN:           sp.tipEN || ep.tipEN || '',
-    };
+    const merged = { ...ep }; // Start with existing
+
+    // User-only fields (never overwrite from import)
+    const userOnlyFields = ['qImgs'];
+
+    // v2 schema fields (always import)
+    const v2Fields = ['answerType', 'modelAnswer', 'markingUnits', 'steps', 'table', 'rubric',
+                      'diagram', 'mustHave', 'niceToHave', 'forbidden', 'group', 'noDoubleCount',
+                      'rules', 'topicTags', 'intent', 'feedbackIfMissing', 'requireUnit'];
+
+    Object.keys(sp).forEach(key => {
+      // Never overwrite user-only fields from import
+      if (userOnlyFields.includes(key)) return;
+
+      // Always import v2 fields
+      if (v2Fields.includes(key)) {
+        merged[key] = sp[key];
+        return;
+      }
+
+      // Regular fields: only overwrite if source is non-empty
+      const spVal = sp[key];
+      if (Array.isArray(spVal)) {
+        if (spVal.length > 0) {
+          if (key === 'vocab') {
+            merged[key] = spVal.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''}));
+          } else {
+            merged[key] = spVal;
+          }
+        }
+      } else if (typeof spVal === 'string' || typeof spVal === 'number') {
+        if (spVal) merged[key] = spVal;
+      } else if (typeof spVal === 'object' && spVal !== null) {
+        merged[key] = spVal;
+      }
+    });
+
+    return merged;
   };
 
   const importedByNo = {};
@@ -2497,22 +2816,46 @@ window.doImportJSON = () => {
       const ep = exParts[pi] ?? { q:'', qImgs:[], marks:2, answer:'', keywords:[], markingPoints:[], vocab:[] };
       return mergePart(ep, srcParts[pi]);
     });
-    return {
-      no,
-      q:               src.q               || ex.q               || '',
-      qEN:             src.qEN             || ex.qEN             || '',
-      qImgs:           ex.qImgs            ?? [],
-      parts,
-      answer:          src.answer          || ex.answer          || '',
-      answerEN:        src.answerEN        || ex.answerEN        || '',
-      keywords:        (Array.isArray(src.keywords)        && src.keywords.length)        ? src.keywords        : (ex.keywords        ?? []),
-      markingPoints:   (Array.isArray(src.markingPoints)   && src.markingPoints.length)   ? src.markingPoints   : (ex.markingPoints   ?? []),
-      markingPointsEN: (Array.isArray(src.markingPointsEN) && src.markingPointsEN.length) ? src.markingPointsEN : (ex.markingPointsEN ?? []),
-      vocab:           (Array.isArray(src.vocab) && src.vocab.length) ? src.vocab.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''})) : (ex.vocab ?? []),
-      marks:           src.marks           ?? ex.marks           ?? 4,
-      form:            ex.form             ?? '',
-      bab:             ex.bab              ?? '',
-    };
+    // Merge question: preserve user-only fields (form, bab, qImgs)
+    const merged = { ...ex }; // Start with existing
+
+    // v2 question-level fields (always import)
+    const v2QFields = ['schemaVersion', 'topicTags'];
+
+    Object.keys(src).forEach(key => {
+      // Never overwrite form, bab, qImgs from import
+      if (['form', 'bab', 'qImgs'].includes(key)) return;
+
+      // Always import v2 fields
+      if (v2QFields.includes(key)) {
+        merged[key] = src[key];
+        return;
+      }
+
+      const srcVal = src[key];
+      if (key === 'parts') {
+        merged.parts = parts;
+      } else if (Array.isArray(srcVal)) {
+        if (srcVal.length > 0) {
+          if (key === 'vocab') {
+            merged[key] = srcVal.map(v=>({term:v.term??'',meaning:v.meaning??'',cn:v.cn??''}));
+          } else {
+            merged[key] = srcVal;
+          }
+        }
+      } else if (typeof srcVal === 'string' || typeof srcVal === 'number') {
+        if (srcVal) merged[key] = srcVal;
+      } else if (typeof srcVal === 'object' && srcVal !== null) {
+        merged[key] = srcVal;
+      }
+    });
+
+    merged.no = no;
+    merged.qImgs = ex.qImgs ?? [];
+    if (!merged.form) merged.form = '';
+    if (!merged.bab) merged.bab = '';
+    if (!merged.marks) merged.marks = 4;
+    return merged;
   });
 
   qaeExpanded = null;

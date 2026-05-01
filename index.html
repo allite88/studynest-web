@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <meta name="description" content="Allite — Platform pembelajaran SPM terpercaya. Akses ribuan soal SPM, quiz interaktif, panduan belajar, dan tutor AI untuk membantu anda lulus SPM dengan mudah. Gratis untuk pelajar Malaysia."/>
-  <meta name="keywords" content="SPM, SPM papers, SPM quiz, SPM notes, SPM study, K1, K2, Essay, Sejarah, Matematik, Biologi, Kimia, Malaysia exam, SPM tips, SPM guide"/>
+  <meta name="description" content="Allite bantu pelajar SPM melatih jawapan K2, semak isi penting, melihat markah anggaran, dan membaiki jawapan berdasarkan skema."/>
+  <meta name="keywords" content="SPM K2, K2 marking, essay practice, SPM papers, quiz, sejarah, markah anggaran, trial papers, Malaysia exam"/>
   <meta name="author" content="Allite"/>
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"/>
   <meta property="og:site_name" content="Allite"/>
-  <meta property="og:title" content="Allite — SPM Papers, Quiz & AI Tutor | Platform Pembelajaran SPM Terbaik"/>
-  <meta property="og:description" content="Pembelajaran SPM yang efektif dengan ribuan soal, quiz interaktif, panduan lengkap, dan dukungan tutor AI. Ratusan ribu pelajar Malaysia telah percaya Allite."/>
+  <meta property="og:title" content="Allite — SPM K2 Markah System | Quiz, Trial Papers & Essay Practice"/>
+  <meta property="og:description" content="Allite bantu pelajar SPM melatih jawapan K2, semak isi penting, melihat markah anggaran, dan membaiki jawapan berdasarkan skema."/>
   <meta property="og:type" content="website"/>
   <meta property="og:url" content="https://allite.space"/>
   <meta property="og:image" content="https://allite.space/og-image.png"/>
@@ -309,6 +309,7 @@
     <!-- Nav (desktop) -->
     <nav class="hidden md:flex items-center gap-1">
       <button onclick="nav('home')"       class="nav-pill nav-idle" id="n-home">Home</button>
+      <button onclick="goK2Demo()" class="nav-pill nav-idle">K2 Demo</button>
       <button onclick="nav('papers')"    class="nav-pill nav-idle" id="n-papers">Trial Papers</button>
       <button onclick="nav('notes')"     class="nav-pill nav-idle" id="n-notes">📖 Notes/Guides</button>
       <button onclick="window.location.href='topics.html'" class="nav-pill nav-idle">🗂 By Topic</button>
@@ -316,7 +317,7 @@
       <button onclick="nav('books')"     class="nav-pill nav-idle" id="n-books">📚 Books</button>
       <button onclick="nav('careers')"   class="nav-pill nav-idle" id="n-careers">🎓 Careers</button>
       <button onclick="nav('pricing')"   class="nav-pill nav-idle" id="n-pricing"
-        style="background:var(--amber-l);color:var(--amber)">💎 Jadi Ahli</button>
+        style="background:var(--amber-l);color:var(--amber)">💎 Pricing</button>
     </nav>
 
     <!-- Auth + Cart -->
@@ -356,38 +357,233 @@
 ════════════════════════════════════════════════════════════════ -->
 <div id="pg-home">
 
-  <!-- Hero -->
-  <section style="background:linear-gradient(135deg,#E8F5EC 0%,#F7FAF7 50%,#FEF9F3 100%)"
-    class="py-10 sm:py-20 px-4">
-    <div class="max-w-4xl mx-auto text-center">
-      <div class="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3 sm:mb-5"
-        style="background:var(--sage);color:var(--green)">SPM · Malaysia</div>
-      <h1 class="text-3xl sm:text-5xl font-extrabold mb-3 leading-tight serif" style="color:var(--text)">
-        Your quiet corner<br/>for SPM prep
-      </h1>
-      <p style="color:var(--muted)" class="text-base sm:text-lg mb-5 max-w-xl mx-auto">
-        Trial papers, notes, AI tutor 3 bahasa — semua dalam satu tempat.
-      </p>
-      <div class="flex flex-wrap gap-3 justify-center">
-        <button onclick="nav('papers')"
-          class="btn-primary font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
-          Browse Trial Papers →
+  <!-- A. HERO SECTION -->
+  <section style="background:linear-gradient(135deg,#E8F5EC 0%,#F7FAF7 50%,#FEF9F3 100%)" class="py-12 sm:py-20 px-4">
+    <div class="max-w-6xl mx-auto">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        <!-- Left: Hero text -->
+        <div>
+          <div class="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4 sm:mb-6"
+            style="background:var(--sage);color:var(--green)">SPM K2 · Sistem Jawapan Bermarkah</div>
+          <h1 class="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight serif" style="color:var(--text)">
+            SPM K2:<br/>Belajar Cara Tulis Jawapan Yang Dapat Markah
+          </h1>
+          <p style="color:var(--muted)" class="text-base sm:text-lg mb-6 max-w-xl">
+            Tahu fakta belum cukup. Allite bantu anda semak isi penting, lihat markah anggaran, dan baiki jawapan sebelum peperiksaan.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="document.getElementById('k2-demo').scrollIntoView({behavior:'smooth'})"
+              class="btn-primary font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
+              Cuba K2 Demo Percuma →
+            </button>
+            <button onclick="nav('pricing')"
+              class="btn-outline font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
+              Lihat Pelan
+            </button>
+          </div>
+        </div>
+        <!-- Right: Demo preview card -->
+        <div class="card p-5">
+          <div class="bg-blue-50 p-4 rounded-lg mb-4">
+            <div class="text-xs font-bold text-blue-700 mb-2">📝 Contoh Soalan</div>
+            <p class="text-sm font-medium" style="color:var(--text)">Jelaskan dua sebab pembentukan Malaysia. [4 markah]</p>
+          </div>
+          <div class="bg-green-50 p-4 rounded-lg mb-4">
+            <div class="text-xs font-bold text-green-700 mb-2">✍️ Jawapan Pelajar</div>
+            <p class="text-sm" style="color:var(--text)">"...menghalang pengaruh komunis dan menyatukan negeri-negeri."</p>
+          </div>
+          <div class="bg-amber-50 p-4 rounded-lg">
+            <div class="text-xs font-bold" style="color:var(--amber)">📊 Markah Anggaran</div>
+            <p class="text-2xl font-bold mt-2" style="color:var(--text)">2 / 4</p>
+            <div class="text-xs mt-3 space-y-1" style="color:var(--muted)">
+              <div>✅ <strong>Isi kena:</strong> ancaman komunis, menyatukan negeri</div>
+              <div>❌ <strong>Isi hilang:</strong> kemerdekaan Sabah/Sarawak, kerjasama ekonomi</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B. K2 DEMO SECTION -->
+  <section id="k2-demo" class="max-w-4xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-8">
+      <h2 class="text-3xl font-bold mb-2" style="color:var(--text)">Cuba sendiri: jawapan anda dapat berapa markah?</h2>
+      <p class="text-sm" style="color:var(--muted)">Demo ini menggunakan semakan ringkas berdasarkan isi skema. Markah sebenar masih bergantung kepada pemeriksa.</p>
+    </div>
+    <div class="card p-6">
+      <div class="mb-4">
+        <label class="block text-sm font-semibold mb-2" style="color:var(--text)">
+          📝 Jelaskan dua sebab pembentukan Malaysia. [4 markah]
+        </label>
+        <textarea id="k2-demo-answer" placeholder="Tulis jawapan anda di sini..."
+          class="w-full border border-green-200 rounded-lg p-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+          rows="4"></textarea>
+      </div>
+      <div class="flex gap-3 flex-wrap">
+        <button onclick="fillK2Demo()"
+          class="btn-outline font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+          Guna contoh jawapan
         </button>
-        <button onclick="nav('notes')"
-          class="btn-amber font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
-          📖 Notes &amp; Guides
+        <button onclick="checkK2Demo()"
+          class="btn-primary font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+          Semak Markah Anggaran
+        </button>
+      </div>
+      <div id="k2-demo-result" class="hidden mt-6 p-4 rounded-lg" style="background:#fafafa">
+        <!-- Result will be inserted here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- C. PROBLEM SECTION -->
+  <section class="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl font-bold mb-2" style="color:var(--text)">Masalah sebenar K2 bukan "tak baca nota".</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div class="card p-6">
+        <div class="text-3xl mb-3">🧠</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Tahu fakta, tapi tak tahu tulis</h3>
+        <p class="text-sm" style="color:var(--muted)">Ramai pelajar ingat fakta, tetapi jawapan tidak ikut kehendak soalan.</p>
+      </div>
+      <div class="card p-6">
+        <div class="text-3xl mb-3">📏</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Jawapan panjang, markah tetap rendah</h3>
+        <p class="text-sm" style="color:var(--muted)">K2 beri markah pada isi yang tepat. Panjang sahaja tidak cukup.</p>
+      </div>
+      <div class="card p-6">
+        <div class="text-3xl mb-3">🎯</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Tak tahu isi mana yang hilang</h3>
+        <p class="text-sm" style="color:var(--muted)">Allite pecahkan skema kepada isi bermarkah supaya anda nampak apa yang perlu ditambah.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- D. SOLUTION SECTION -->
+  <section class="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl font-bold mb-2" style="color:var(--text)">Allite tukar skema jawapan menjadi latihan markah.</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="text-center">
+        <div class="bg-green-50 rounded-full w-16 h-16 flex items-center justify-center text-2xl mx-auto mb-4">1️⃣</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Pilih soalan sebenar</h3>
+        <p class="text-sm" style="color:var(--muted)">Trial paper, quiz, atau soalan mengikut bab.</p>
+      </div>
+      <div class="text-center">
+        <div class="bg-green-50 rounded-full w-16 h-16 flex items-center justify-center text-2xl mx-auto mb-4">2️⃣</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Tulis jawapan sendiri</h3>
+        <p class="text-sm" style="color:var(--muted)">Latih cara jawab, bukan sekadar baca skema.</p>
+      </div>
+      <div class="text-center">
+        <div class="bg-green-50 rounded-full w-16 h-16 flex items-center justify-center text-2xl mx-auto mb-4">3️⃣</div>
+        <h3 class="font-bold mb-2" style="color:var(--text)">Semak &amp; baiki</h3>
+        <p class="text-sm" style="color:var(--muted)">Lihat isi kena, isi hilang, dan contoh jawapan yang lebih kuat.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- E. PRODUCT PATH SECTION -->
+  <section class="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl font-bold mb-2" style="color:var(--text)">Pilih cara belajar yang sesuai.</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+      <div class="card p-6">
+        <h3 class="font-bold text-lg mb-2" style="color:var(--text)">📚 Sepanjang tahun</h3>
+        <div class="text-2xl font-bold mb-3" style="color:var(--green)">RM 129</div>
+        <p class="text-sm mb-4" style="color:var(--muted)">Pro Plan — Untuk pelajar yang mahu semua trial papers, quiz, by topic, dan K2 practice dalam satu akaun.</p>
+        <button onclick="nav('pricing')" class="btn-primary w-full py-2 rounded-lg text-sm font-semibold">
+          Pelajari Lebih Lanjut
+        </button>
+      </div>
+      <div class="card p-6">
+        <h3 class="font-bold text-lg mb-2" style="color:var(--text)">⚡ Sebelum peperiksaan</h3>
+        <div class="text-2xl font-bold mb-3" style="color:var(--amber)">RM 29–49</div>
+        <p class="text-sm mb-4" style="color:var(--muted)">Sprint Pack — Untuk fokus last-minute kepada Sejarah, BM atau subjek penting sebelum exam.</p>
+        <button onclick="nav('pricing')" class="btn-amber w-full py-2 rounded-lg text-sm font-semibold">
+          Pelajari Lebih Lanjut
         </button>
       </div>
     </div>
   </section>
 
-  <!-- Quick links -->
-  <section class="max-w-6xl mx-auto px-4 py-6 sm:py-10">
+  <!-- F. COMPARISON SECTION -->
+  <section class="max-w-4xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl font-bold mb-2" style="color:var(--text)">Kenapa bukan sekadar download skema?</h2>
+    </div>
+    <div class="card overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="background:var(--sage)">
+            <th class="text-left px-4 py-3 text-xs font-bold" style="color:var(--text)">Ciri</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Baca skema biasa</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--green)">Allite</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Nampak jawapan model</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Tahu isi mana beri markah</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Kadang-kadang</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Boleh tulis jawapan sendiri</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Tidak</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Dapat markah anggaran</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Tidak</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Nampak isi hilang</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Tidak</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-3 text-xs" style="color:var(--text)">Dapat cadangan baiki</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Tidak</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- G. FINAL CTA SECTION -->
+  <section class="bg-green-50 py-12 sm:py-16 px-4 border-t" style="border-color:#E4EDE6">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl font-bold mb-3" style="color:var(--text)">Mula dengan demo percuma. Naik taraf bila anda mahu latihan penuh.</h2>
+      <p class="text-sm mb-6" style="color:var(--muted)">Semua pelajar dapat akses percuma ke demo. Buka pelan untuk latihan lengkap.</p>
+      <div class="flex gap-3 justify-center flex-wrap">
+        <button onclick="document.getElementById('k2-demo').scrollIntoView({behavior:'smooth'})"
+          class="btn-primary font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
+          Cuba Demo
+        </button>
+        <button onclick="nav('pricing')"
+          class="btn-outline font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
+          Lihat Pricing
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick links for existing features -->
+  <section class="max-w-6xl mx-auto px-4 py-10 sm:py-12">
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       <button onclick="nav('papers')" class="card p-5 text-left hover:border-green-300">
         <div class="text-3xl mb-3">📄</div>
         <div class="font-bold text-sm mb-1" style="color:var(--text)">Trial Papers</div>
-        <div class="text-xs" style="color:var(--muted)">2023–2025 · All states · Free</div>
+        <div class="text-xs" style="color:var(--muted)">2023–2025 · Free</div>
       </button>
       <button onclick="nav('notes')" class="card p-5 text-left hover:border-amber-200">
         <div class="text-3xl mb-3">📖</div>
@@ -397,22 +593,17 @@
       <button onclick="window.location.href='topics.html'" class="card p-5 text-left hover:border-green-200">
         <div class="text-3xl mb-3">🗂</div>
         <div class="font-bold text-sm mb-1" style="color:var(--text)">By Topic</div>
-        <div class="text-xs" style="color:var(--muted)">Latih mengikut bab · K1 & K2</div>
+        <div class="text-xs" style="color:var(--muted)">Latih mengikut bab</div>
       </button>
       <button onclick="nav('collection')" class="card p-5 text-left hover:border-blue-200">
         <div class="text-3xl mb-3">📦</div>
         <div class="font-bold text-sm mb-1" style="color:var(--text)">Collection</div>
-        <div class="text-xs" style="color:var(--muted)">RM1.99 each · Online view</div>
+        <div class="text-xs" style="color:var(--muted)">Online view · RM1.99</div>
       </button>
       <button onclick="nav('books')" class="card p-5 text-left hover:border-amber-200">
         <div class="text-3xl mb-3">📚</div>
         <div class="font-bold text-sm mb-1" style="color:var(--text)">Physical Books</div>
-        <div class="text-xs" style="color:var(--muted)">Order with TNG / FPX</div>
-      </button>
-      <button onclick="nav('careers')" class="card p-5 text-left hover:border-sky-200">
-        <div class="text-3xl mb-3">🎓</div>
-        <div class="font-bold text-sm mb-1" style="color:var(--text)">Career Paths</div>
-        <div class="text-xs" style="color:var(--muted)">What can I do with this subject?</div>
+        <div class="text-xs" style="color:var(--muted)">Order online</div>
       </button>
     </div>
   </section>
@@ -1016,19 +1207,20 @@
      PRICING
 ════════════════════════════════════════════════════════════════ -->
 <div id="pg-pricing" class="hidden">
-  <div class="max-w-4xl mx-auto px-4 py-12">
+  <div class="max-w-7xl mx-auto px-4 py-12 sm:py-16">
 
     <!-- Header -->
-    <div class="text-center mb-10">
-      <div class="text-xs font-bold uppercase tracking-widest mb-2 inline-block px-3 py-1 rounded-full"
-        style="background:var(--amber-l);color:var(--amber)">💎 Pelan Ahli</div>
-      <h1 class="text-3xl font-extrabold mb-2 serif" style="color:var(--text)">Belajar Lebih Bijak</h1>
-      <p class="text-sm max-w-sm mx-auto" style="color:var(--muted)">
-        Dapatkan akses penuh ke semua kandungan, AI tutor tanpa had, dan analisis kelemahan anda.
+    <div class="text-center mb-12">
+      <h1 class="text-3xl sm:text-4xl font-bold mb-3 serif" style="color:var(--text)">Pilih pelan Allite</h1>
+      <p class="text-sm max-w-lg mx-auto mb-2" style="color:var(--muted)">
+        Mulakan percuma, cuba 30 hari, atau buka latihan penuh untuk skor K2 dengan lebih jelas.
+      </p>
+      <p class="text-sm max-w-lg mx-auto" style="color:var(--muted)">
+        Pro untuk belajar sepanjang tahun. Sprint Pack untuk pecutan sebelum peperiksaan.
       </p>
     </div>
 
-    <!-- Already premium -->
+    <!-- Already member -->
     <div id="pricing-already" class="hidden text-center mb-8">
       <div class="inline-block card px-8 py-6">
         <div class="text-4xl mb-3">⭐</div>
@@ -1038,103 +1230,232 @@
     </div>
 
     <!-- Pricing cards -->
-    <div id="pricing-cards" class="mb-10">
+    <div id="pricing-cards" class="mb-12">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
 
-      <!-- Per-subject option -->
-      <div class="card p-5 mb-4 max-w-2xl mx-auto">
-        <div class="font-bold text-sm mb-1" style="color:var(--text)">📄 Beli Mengikut Subjek</div>
-        <p class="text-xs mb-3" style="color:var(--muted)">Pilih subjek yang anda perlukan sahaja. Harga berbeza mengikut subjek.</p>
-        <button onclick="showSubjectSelectorModal()"
-          class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-          Pilih Subjek →
-        </button>
-      </div>
+        <!-- CARD 1: FREE -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Free</div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM0</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">selamanya</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba Allite dan lihat cara sistem markah berfungsi.</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Trial papers terpilih</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Quiz terhad</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 demo 1–2 soalan</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Preview By Topic</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{nav('papers')}"
+            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Mula Percuma
+          </button>
+        </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
-        <!-- Core 5 -->
+        <!-- CARD 2: TRIAL PASS -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Trial Pass</div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM19</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">30 hari</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk cuba latihan penuh sebelum langgan tahunan.</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Akses Quiz 2025</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Jawapan asas</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>K2 practice terhad</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Trial papers pilihan</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{startPayment('trial_pass',this)}"
+            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Cuba 30 Hari
+          </button>
+        </div>
+
+        <!-- CARD 3: PRO YEARLY (HIGHLIGHTED) -->
+        <div class="card p-5 flex flex-col lg:col-span-1" style="border:2.5px solid var(--green);box-shadow:0 8px 24px rgba(75,122,92,.15)">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-bold text-sm" style="color:var(--text)">Pro</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--sage);color:var(--green)">PALING POPULAR</span>
+          </div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM129</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Pelan utama untuk pelajar SPM yang mahu latihan konsisten.</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Semua trial papers</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Semua Quiz</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>By Topic penuh</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Latihan jawapan bermarkah</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Isi kena / isi hilang</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Cadangan baiki jawapan</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Error book / analisis kelemahan</li>
+            <li class="flex gap-2"><span style="color:var(--green)" class="shrink-0">✓</span>Akses sepanjang tahun</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{startPayment('pro_yearly',this)}"
+            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Pilih Pro
+          </button>
+        </div>
+
+        <!-- CARD 4: PREMIUM YEARLY -->
+        <div class="card p-5 flex flex-col">
+          <div class="font-bold text-sm mb-1" style="color:var(--text)">Premium</div>
+          <div class="mb-1">
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM199</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
+          </div>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar yang mahu bantuan lebih mendalam dan latihan exam lebih serius.</p>
+          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Semua dalam Pro</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>AI essay review lanjutan</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>KBAT / jawapan kompleks</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Predicted questions</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Personal study plan</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Priority new content</li>
+          </ul>
+          <button onclick="if(!window._getUid()){window._login()}else{startPayment('premium_yearly',this)}"
+            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Pilih Premium
+          </button>
+        </div>
+
+        <!-- CARD 5: SPRINT PACK -->
         <div class="card p-5 flex flex-col">
           <div class="flex items-center gap-2 mb-1">
-            <span class="font-bold text-sm" style="color:var(--text)">📚 Core 5 Bundle</span>
+            <span class="font-bold text-sm" style="color:var(--text)">Sprint Pack</span>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#fef3c7;color:#92400e">LAST-MINUTE</span>
           </div>
           <div class="mb-1">
-            <span class="text-3xl font-extrabold pricing-core5-rm" style="color:var(--text)">69.00</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">RM · sekali bayar</span>
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM29–49</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">per subjek / 30 hari</span>
           </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">BM · BI · Math · Sejarah · Sains</p>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pecutan sebelum peperiksaan.</p>
           <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Papers + Nota (5 subjek)</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>AI Tutor tanpa had</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Akses selamanya</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>Subjek fokus pilihan</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>High-frequency questions</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>K2 marking breakdown</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>Template jawapan</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>Exam strategy</li>
+            <li class="flex gap-2"><span class="text-amber-600 shrink-0">✓</span>30 hari akses</li>
           </ul>
-          <button onclick="startPayment('core5',this)"
-            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Beli Core 5
+          <button onclick="if(!window._getUid()){window._login()}else{startPayment('sejarah_sprint',this)}"
+            class="btn-amber w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Buka Sprint Pack
           </button>
         </div>
 
-        <!-- All Access -->
-        <div class="card p-5 flex flex-col" style="border:2px solid var(--amber)">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="font-bold text-sm" style="color:var(--text)">🌟 All Access</span>
-            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:var(--amber-l);color:var(--amber)">BEST VALUE</span>
-          </div>
-          <div class="mb-1">
-            <span class="text-3xl font-extrabold pricing-all-rm" style="color:var(--text)">149.00</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">RM · sekali bayar</span>
-          </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Semua 14 subjek SPM</p>
-          <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
-            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Papers + Nota (14 subjek)</li>
-            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>AI Tutor tanpa had</li>
-            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Error Book & analisis kelemahan</li>
-            <li class="flex gap-2"><span style="color:var(--amber)" class="shrink-0">✓</span>Akses selamanya</li>
-          </ul>
-          <button onclick="startPayment('all_access',this)"
-            class="btn-amber w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Beli All Access
-          </button>
-        </div>
       </div>
     </div>
 
-    <!-- Free vs Ahli comparison -->
-    <div class="card overflow-hidden max-w-2xl mx-auto">
+    <!-- Comparison table -->
+    <div class="card overflow-hidden">
       <table class="w-full text-sm">
         <thead>
           <tr style="background:var(--sage)">
-            <th class="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide" style="color:var(--muted)">Ciri</th>
-            <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-center" style="color:var(--muted)">Percuma</th>
-            <th class="px-4 py-3 text-xs font-bold uppercase tracking-wide text-center" style="color:var(--amber)">Ahli 💎</th>
+            <th class="text-left px-4 py-3 text-xs font-bold" style="color:var(--text)">Ciri</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Free</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Trial Pass</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Pro</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Premium</th>
+            <th class="text-center px-4 py-3 text-xs font-bold" style="color:var(--muted)">Sprint Pack</th>
           </tr>
         </thead>
         <tbody>
-          <tr class="border-t border-slate-100">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Quiz & Trial Papers</td>
-            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">Terhad</td>
-            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Semua</td>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Trial papers</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Terhad</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Pilihan</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Subjek fokus</td>
           </tr>
-          <tr class="border-t border-slate-100" style="background:#fafafa">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">AI Tutor</td>
-            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">3x sehari</td>
-            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Tanpa had</td>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Quiz</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Terhad</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
           </tr>
-          <tr class="border-t border-slate-100">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Notes & Guides</td>
-            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">Percuma sahaja</td>
-            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓ Semua</td>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">By Topic</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Preview</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Penuh</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
           </tr>
-          <tr class="border-t border-slate-100" style="background:#fafafa">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Error Book & Analisis</td>
-            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">—</td>
-            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓</td>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">K2 markah anggaran</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Demo sahaja</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Terhad</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
           </tr>
-          <tr class="border-t border-slate-100">
-            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Streak & Gamifikasi</td>
-            <td class="px-4 py-2.5 text-center text-xs" style="color:var(--muted)">—</td>
-            <td class="px-4 py-2.5 text-center text-xs font-semibold" style="color:var(--green)">✓</td>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Isi kena / isi hilang</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Demo sahaja</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Cadangan baiki</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">AI essay review</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Predicted questions</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+          </tr>
+          <tr class="border-t" style="border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Study plan</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Ya</td>
+            <td class="text-center text-xs" style="color:var(--muted)">—</td>
+          </tr>
+          <tr class="border-t" style="background:#fafafa;border-color:#E4EDE6">
+            <td class="px-4 py-2.5 text-xs" style="color:var(--text)">Tempoh akses</td>
+            <td class="text-center text-xs" style="color:var(--muted)">Selamanya</td>
+            <td class="text-center text-xs" style="color:var(--muted)">30 hari</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Setahun</td>
+            <td class="text-center text-xs font-semibold" style="color:var(--green)">Setahun</td>
+            <td class="text-center text-xs" style="color:var(--muted)">30 hari</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Bottom CTA -->
+    <div class="text-center mt-12">
+      <h3 class="font-bold mb-2" style="color:var(--text)">Masih belum pasti?</h3>
+      <p class="text-sm mb-4" style="color:var(--muted)">Cuba demo percuma dahulu.</p>
+      <button onclick="nav('home');setTimeout(()=>{document.getElementById('k2-demo').scrollIntoView({behavior:'smooth'})},80)"
+        class="btn-primary font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+        Cuba Demo Sekarang
+      </button>
     </div>
 
     <!-- Login prompt for guests -->
@@ -1468,6 +1789,89 @@ function closePdfViewer() {
   document.getElementById('pdf-viewer-modal').classList.add('hidden');
   document.getElementById('pdf-viewer-iframe').src = '';
 }
+
+/* ── K2 Demo ────────────────────────────────────────────────────── */
+const K2_DEMO_UNITS = [
+  {
+    id: 'komunis',
+    text: 'Membendung ancaman komunis',
+    keywords: ['komunis','pengaruh komunis','ancaman komunis','menghalang komunis']
+  },
+  {
+    id: 'merdeka',
+    text: 'Mempercepat kemerdekaan Sabah dan Sarawak',
+    keywords: ['merdeka','kemerdekaan','sabah','sarawak']
+  },
+  {
+    id: 'ekonomi',
+    text: 'Mengukuhkan kerjasama ekonomi',
+    keywords: ['ekonomi','kerjasama ekonomi']
+  },
+  {
+    id: 'negeri',
+    text: 'Menyatukan negeri-negeri serantau',
+    keywords: ['menyatukan','penyatuan','negeri','serantau']
+  }
+];
+
+window.fillK2Demo = function() {
+  const el = document.getElementById('k2-demo-answer');
+  if (!el) return;
+  el.value = 'Pembentukan Malaysia dapat menghalang pengaruh komunis dan menyatukan negeri-negeri.';
+  window.checkK2Demo();
+};
+
+window.checkK2Demo = function() {
+  const el = document.getElementById('k2-demo-answer');
+  const out = document.getElementById('k2-demo-result');
+  if (!el || !out) return;
+
+  const text = el.value.toLowerCase();
+  const matched = [];
+  const missing = [];
+
+  K2_DEMO_UNITS.forEach(unit => {
+    const ok = unit.keywords.some(k => text.includes(k.toLowerCase()));
+    if (ok) matched.push(unit);
+    else missing.push(unit);
+  });
+
+  const score = Math.min(matched.length, 4);
+
+  const matchedHtml = matched.map(u => `<div class="text-xs" style="color:#065f46">✅ ${u.text}</div>`).join('');
+  const missingHtml = missing.map(u => `<div class="text-xs" style="color:#991b1b">❌ ${u.text}</div>`).join('');
+
+  const improvedAnswer = 'Pembentukan Malaysia bertujuan membendung ancaman komunis, mempercepat kemerdekaan Sabah dan Sarawak, mengukuhkan kerjasama ekonomi serta menyatukan negeri-negeri serantau.';
+
+  out.innerHTML = `
+    <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+      <div class="text-2xl font-bold" style="color:var(--text)">Markah anggaran: ${score} / 4</div>
+    </div>
+    <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+      <div class="font-semibold text-sm mb-2" style="color:var(--green)">✅ Isi kena:</div>
+      <div class="space-y-1">${matchedHtml || '<div class="text-xs" style="color:var(--muted)">Tiada</div>'}</div>
+    </div>
+    <div class="mb-4">
+      <div class="font-semibold text-sm mb-2" style="color:#991b1b">❌ Isi hilang:</div>
+      <div class="space-y-1">${missingHtml}</div>
+    </div>
+    ${score < 4 ? `
+    <div class="bg-green-50 p-3 rounded-lg border border-green-200 mt-4">
+      <div class="font-semibold text-xs mb-2" style="color:var(--green)">💡 Jawapan yang lebih kuat:</div>
+      <p class="text-xs" style="color:var(--text)">"${improvedAnswer}"</p>
+    </div>
+    ` : ''}
+  `;
+  out.classList.remove('hidden');
+};
+
+window.goK2Demo = function() {
+  nav('home');
+  setTimeout(() => {
+    const el = document.getElementById('k2-demo');
+    if (el) el.scrollIntoView({behavior:'smooth'});
+  }, 80);
+};
 
 /* ── Notes / Guides ─────────────────────────────────────────────── */
 let _notesData = null, _notesSubject = 'all', _notesYear = 'all';

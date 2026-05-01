@@ -101,6 +101,17 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function getPartAnswerType(part) {
+  if (part.answerType) return part.answerType;
+  if (part.markingUnits?.length > 0) return 'point_based';
+  if (part.steps?.length > 0) return 'calculation_steps';
+  if (part.table) return 'table_cells';
+  if (part.formula) return 'formula';
+  if (part.diagram) return 'diagram_label';
+  if (part.rubric) return 'rubric_based';
+  return 'point_based';
+}
+
 function renderImages(imgs) {
   if (!imgs?.length) return '';
   return `<div class="flex flex-wrap gap-2 mb-3">${imgs.map(src =>
@@ -163,6 +174,113 @@ function renderMarkingPoints(markingPoints, marks, vocab) {
   </div>`;
 }
 
+function renderMarkingUnits(markingUnits, marks, vocab) {
+  if (!markingUnits?.length) return '';
+  const math    = isMath();
+  const palette = math ? STEP_PALETTE : FACT_PALETTE;
+  const prefix  = math ? 'L' : 'F';
+  const boxClass = math ? 'ans-box-math' : 'ans-box';
+  const badgeText = math
+    ? `${markingUnits.length} langkah penyelesaian`
+    : `Mana-mana <strong>${marks}</strong> daripada ${markingUnits.length} unit jawapan`;
+  const items = markingUnits.map((unit, i) =>
+    `<div class="flex items-start gap-2 mb-2 last:mb-0">
+      <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
+      <div class="flex-1">
+        <div class="text-sm text-slate-700 leading-relaxed font-medium">${escHtml(unit.text)}</div>
+        ${unit.aliases?.length > 0 ? `<div class="text-xs text-slate-500 mt-0.5">Juga: ${unit.aliases.map(a => escHtml(a)).join(', ')}</div>` : ''}
+      </div>
+      ${unit.marks ? `<span class="shrink-0 text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${unit.marks}m</span>` : ''}
+    </div>`
+  ).join('');
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">
+    <div class="text-xs text-slate-400 font-medium mb-3">${badgeText}</div>
+    ${items}
+    ${renderVocab(vocab)}
+  </div>`;
+}
+
+function renderCalculationSteps(steps, marks, vocab) {
+  if (!steps?.length) return '';
+  const palette = STEP_PALETTE;
+  const boxClass = 'ans-box-math';
+  const items = steps.map((step, i) =>
+    `<div class="flex items-start gap-2 mb-2 last:mb-0">
+      <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">L${i+1}</span>
+      <div class="flex-1">
+        <div class="text-sm text-slate-700 leading-relaxed font-medium">${escHtml(step.label || `Langkah ${i+1}`)}</div>
+        ${step.expected ? `<div class="text-xs text-slate-500 mt-0.5 font-mono">Jangkaan: <code>${escHtml(step.expected)}</code></div>` : ''}
+      </div>
+      ${step.marks ? `<span class="shrink-0 text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${step.marks}m</span>` : ''}
+    </div>`
+  ).join('');
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">
+    <div class="text-xs text-slate-400 font-medium mb-3">${steps.length} langkah penyelesaian</div>
+    ${items}
+    ${renderVocab(vocab)}
+  </div>`;
+}
+
+function renderTableCells(table, vocab) {
+  if (!table?.rows?.length || !table?.columns?.length) return '<div class="text-xs text-slate-400 italic">Jadual tidak lengkap</div>';
+  const boxClass = 'ans-box';
+  const html = `<table class="w-full text-xs border-collapse">
+    <thead><tr class="bg-slate-100">
+      <th class="border border-slate-200 px-2 py-1 text-left"></th>
+      ${table.columns.map(col => `<th class="border border-slate-200 px-2 py-1 text-left">${escHtml(col)}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      ${table.rows.map(row => `<tr>
+        <td class="border border-slate-200 px-2 py-1 font-semibold">${escHtml(row.label || '')}</td>
+        ${(row.cells || []).map((cell, ci) => {
+          // Support both string cells and object cells { expected, aliases, marks }
+          let cellHtml = '';
+          if (typeof cell === 'object' && cell !== null) {
+            cellHtml = `<div class="text-slate-700">${escHtml(cell.expected || '')}</div>`;
+            if (cell.aliases?.length) cellHtml += `<div class="text-slate-500 text-xs">别名: ${cell.aliases.map(a => escHtml(a)).join(', ')}</div>`;
+            if (cell.marks) cellHtml += `<div class="text-slate-500 text-xs font-semibold">${cell.marks}m</div>`;
+          } else {
+            cellHtml = `<div class="text-slate-700">${escHtml(cell)}</div>`;
+          }
+          return `<td class="border border-slate-200 px-2 py-1">${cellHtml}</td>`;
+        }).join('')}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">${html}${renderVocab(vocab)}</div>`;
+}
+
+function renderRubric(rubric, vocab) {
+  if (!rubric?.bands?.length) return '<div class="text-xs text-slate-400 italic">Rubrik tidak lengkap</div>';
+  const boxClass = 'ans-box';
+  const items = rubric.bands.map((band, i) => {
+    // Support both old (mark: string) and new (minMarks/maxMarks: number) schema
+    const markLabel = band.minMarks !== undefined && band.maxMarks !== undefined
+      ? `${band.minMarks}-${band.maxMarks}`
+      : band.mark || '';
+    const description = band.description || '';
+    const criteriaText = Array.isArray(band.criteria)
+      ? band.criteria.map(c => `• ${escHtml(c)}`).join('<br>')
+      : escHtml(band.criteria || '');
+
+    return `
+    <div class="mb-3 pb-2 border-b border-slate-200 last:border-0">
+      <div class="text-xs font-bold text-slate-700 mb-1">Markah: ${markLabel}</div>
+      ${description ? `<div class="text-xs text-slate-700 font-medium mb-1">${escHtml(description)}</div>` : ''}
+      ${criteriaText ? `<div class="text-xs text-slate-700 leading-relaxed">${criteriaText}</div>` : ''}
+      ${band.keywords?.length ? `<div class="text-xs text-slate-500 mt-1">Kata kunci: ${band.keywords.map(k => escHtml(k)).join(', ')}</div>` : ''}
+    </div>
+  `}).join('');
+  return `<div class="${boxClass} rounded-xl p-4 mt-3">${items}${renderVocab(vocab)}</div>`;
+}
+
+function renderDiagramLabel(diagram, vocab) {
+  if (!diagram?.imageUrl) return '<div class="text-xs text-slate-400 italic">Imej diagram tidak tersedia</div>';
+  const boxClass = 'ans-box';
+  const labels = diagram.labels?.length ? `<div class="mt-2 text-xs"><strong>Label yang dijangkakan:</strong><ul class="list-disc list-inside">${diagram.labels.map(l => `<li>${escHtml(l.id)}: ${escHtml(l.expectedText)}</li>`).join('')}</ul></div>` : '';
+  return `<div class="${boxClass} rounded-xl p-4 mt-3"><img src="${diagram.imageUrl}" class="max-w-full rounded mb-2">${labels}${renderVocab(vocab)}</div>`;
+}
+
 function renderTip(tip, tipCN, tipEN, id) {
   if (!tip && !tipCN && !tipEN) return '';
   const map    = { ms: tip||'', zh: tipCN||'', en: tipEN||'' };
@@ -221,25 +339,71 @@ function renderPart(p, pi, qi) {
   const tipId   = `tip-${qi}-${pi}`;
   const useEN   = _contentLang === 'bilingual' && _displayLang === 'en';
   const qText   = useEN ? (p.qEN || p.q) : p.q;
-  const hasMP   = useEN ? (p.markingPointsEN?.length > 0 || p.markingPoints?.length > 0)
-                        : p.markingPoints?.length > 0;
-  const mpList  = useEN ? (p.markingPointsEN?.length ? p.markingPointsEN : p.markingPoints)
-                        : p.markingPoints;
-  const ansText = useEN ? (p.answerEN || p.answer) : p.answer;
 
-  // Schema content: prefer markingPoints (shows ALL facts), fall back to answer text
-  const schemaContent = hasMP
-    ? renderMarkingPoints(mpList, p.marks||0, p.vocab)
-    : renderAnswer(ansText, p.vocab);
+  // Detect schema version 2 (markingUnits, steps, or other v2 types present)
+  const hasMarkingUnits = p.markingUnits?.length > 0;
+  const hasSteps = p.steps?.length > 0;
+  const hasTable = p.table?.rows?.length > 0;
+  const hasRubric = p.rubric?.bands?.length > 0;
+  const hasDiagram = p.diagram?.imageUrl;
+  const isCalculationSteps = hasSteps; // calculation_steps = manual marking, no auto-check
 
-  const writeBtn = hasMP
+  let schemaContent = '';
+  let hasAnswerInfo = false;
+  let allowAutoCheck = true; // Only markingUnits allow auto-checking
+
+  if (hasMarkingUnits) {
+    // schemaVersion 2: markingUnits (point_based or keyword_concept)
+    schemaContent = renderMarkingUnits(p.markingUnits, p.marks||0, p.vocab);
+    hasAnswerInfo = true;
+    allowAutoCheck = true;
+  } else if (hasSteps) {
+    // schemaVersion 2: calculation_steps — show expected answers only, no auto-check
+    schemaContent = renderCalculationSteps(p.steps, p.marks||0, p.vocab);
+    hasAnswerInfo = true;
+    allowAutoCheck = false; // Manual marking required
+  } else if (hasTable) {
+    // schemaVersion 2: table_cells — manual marking
+    schemaContent = renderTableCells(p.table, p.vocab);
+    hasAnswerInfo = true;
+    allowAutoCheck = false;
+  } else if (hasRubric) {
+    // schemaVersion 2: rubric_based — manual marking
+    schemaContent = renderRubric(p.rubric, p.vocab);
+    hasAnswerInfo = true;
+    allowAutoCheck = false;
+  } else if (hasDiagram) {
+    // schemaVersion 2: diagram_label — manual marking
+    schemaContent = renderDiagramLabel(p.diagram, p.vocab);
+    hasAnswerInfo = true;
+    allowAutoCheck = false;
+  } else {
+    // schemaVersion 1: old markingPoints or answer text
+    const hasMP   = useEN ? (p.markingPointsEN?.length > 0 || p.markingPoints?.length > 0)
+                          : p.markingPoints?.length > 0;
+    const mpList  = useEN ? (p.markingPointsEN?.length ? p.markingPointsEN : p.markingPoints)
+                          : p.markingPoints;
+    const ansText = useEN ? (p.answerEN || p.answer) : p.answer;
+
+    if (hasMP) {
+      schemaContent = renderMarkingPoints(mpList, p.marks||0, p.vocab);
+      hasAnswerInfo = true;
+      allowAutoCheck = true;
+    } else {
+      schemaContent = renderAnswer(ansText, p.vocab);
+      hasAnswerInfo = false;
+      allowAutoCheck = false;
+    }
+  }
+
+  const writeBtn = (hasAnswerInfo && allowAutoCheck)
     ? `<button onclick="toggleWrite('${qi}','${pi}')" id="wbtn-${qi}-${pi}"
          class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl transition font-semibold">
          ✏️ Jawab Sendiri
        </button>`
     : '';
 
-  const studentSection = hasMP
+  const studentSection = (hasAnswerInfo && allowAutoCheck)
     ? `<div id="write-${qi}-${pi}" class="hidden mt-3">
         <textarea id="inp-${qi}-${pi}" class="write-area" rows="5" placeholder="Tulis jawapan anda di sini..."></textarea>
         <button onclick="checkAnswer('${qi}','${pi}')"
@@ -248,9 +412,9 @@ function renderPart(p, pi, qi) {
         </button>
         <div id="res-${qi}-${pi}" class="hidden mt-3"></div>
       </div>`
-    : '';
+    : (isCalculationSteps ? `<div class="hidden mt-3 text-xs text-slate-500 italic">💡 Jenis soalan ini memerlukan penilaian manual.</div>` : '');
 
-  const schemaLabel = hasMP ? '👁 Lihat Skema' : '👁 Lihat Jawapan';
+  const schemaLabel = hasAnswerInfo ? '👁 Lihat Skema' : '👁 Lihat Jawapan';
 
   return `<div class="mb-4 pl-4 border-l-2 border-slate-200">
     <div class="flex items-start gap-2 mb-2">
@@ -343,56 +507,251 @@ const STOP_EN = new Set(['the','and','or','with','in','for','to','of','is','are'
 
 window.checkAnswer = (qi, pi) => {
   const p = _qaData?.questions?.[qi]?.parts?.[pi];
-  const useEN  = _contentLang === 'bilingual' && _displayLang === 'en';
-  const mpList = useEN
-    ? (p?.markingPointsEN?.length ? p.markingPointsEN : p?.markingPoints)
-    : p?.markingPoints;
-  if (!mpList?.length) return;
+  if (!p) return;
 
-  const stopWords = useEN ? STOP_EN : STOP_BM;
-  const text   = document.getElementById(`inp-${qi}-${pi}`)?.value || '';
+  const useEN = _contentLang === 'bilingual' && _displayLang === 'en';
+  const text = document.getElementById(`inp-${qi}-${pi}`)?.value || '';
   const tLower = text.toLowerCase();
-  const marks  = p.marks || 0;
+  const marks = p.marks || 0;
+  const stopWords = useEN ? STOP_EN : STOP_BM;
+  const math = isMath();
+  const palette = math ? STEP_PALETTE : FACT_PALETTE;
+  const prefix = math ? 'L' : 'F';
 
-  const tWords = tLower.split(/\s+/)
-    .map(w => w.replace(/[^a-z0-9]/g, ''))
-    .filter(w => w.length >= 4 && !stopWords.has(w));
+  let html = '';
 
-  const results = mpList.map((pt, i) => {
-    const ptLower = pt.toLowerCase();
-    const mWords = ptLower.split(/\s+/)
+  // Detect schema version 2: markingUnits
+  if (p.markingUnits?.length > 0) {
+    const tWords = tLower.split(/\s+/)
       .map(w => w.replace(/[^a-z0-9]/g, ''))
       .filter(w => w.length >= 4 && !stopWords.has(w));
-    const found = mWords.length > 0 && mWords.some(mw =>
-      tLower.includes(mw) ||
-      tWords.some(tw => mw.includes(tw) && tw.length >= 4)
-    );
-    return { pt, i, found };
-  });
 
-  const matched = results.filter(r => r.found).length;
-  const score   = Math.min(matched, marks);
-  const math    = isMath();
-  const palette = math ? STEP_PALETTE : FACT_PALETTE;
-  const prefix  = math ? 'L' : 'F';
-  const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+    const results = p.markingUnits.map((unit, i) => {
+      // Build searchable text: text + aliases + mustHave + niceToHave
+      const searchableTerms = [
+        unit.text || '',
+        ...(unit.aliases || []),
+        ...(unit.mustHave || []),
+        ...(unit.niceToHave || [])
+      ];
+      const unitText = searchableTerms.join(' ');
+      const unitLower = unitText.toLowerCase();
+      const unitWords = unitLower.split(/\s+/)
+        .map(w => w.replace(/[^a-z0-9]/g, ''))
+        .filter(w => w.length >= 4 && !stopWords.has(w));
 
-  const html = `
-    <div class="border border-slate-200 rounded-xl overflow-hidden">
-      <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
-        <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
-        <div class="text-xs text-slate-400">${matched} isi ditemui daripada ${p.markingPoints.length}</div>
-      </div>
-      <div class="p-4 space-y-2">
-        ${results.map(({pt, i, found}) => `
-          <div class="flex items-start gap-2">
-            <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
-            <div class="flex-1 text-sm leading-relaxed ${found ? 'text-slate-700' : 'text-slate-300'}">${escHtml(pt)}</div>
-            <span class="shrink-0 text-sm">${found ? '✅' : '❌'}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
+      const found = unitWords.length > 0 && unitWords.some(uw =>
+        tLower.includes(uw) ||
+        tWords.some(tw => uw.includes(tw) && tw.length >= 4)
+      );
+
+      // Check if all mustHave keywords are present (if mustHave is defined)
+      let hasMustHave = true;
+      if (unit.mustHave?.length > 0) {
+        const mustHaveWords = (unit.mustHave || []).map(w => w.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        hasMustHave = mustHaveWords.every(mw =>
+          tLower.includes(mw) || tWords.some(tw => mw.includes(tw) && tw.length >= 4)
+        );
+      }
+
+      // Check if forbidden keywords are present
+      let hasForbidden = false;
+      if (unit.forbidden?.length > 0) {
+        const forbiddenWords = (unit.forbidden || []).map(w => w.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        hasForbidden = forbiddenWords.some(fw =>
+          tLower.includes(fw) || tWords.some(tw => fw.includes(tw) && tw.length >= 4)
+        );
+      }
+
+      // Unit-level rules
+      let unitMarks = 0;
+      let status = '';
+
+      if (hasForbidden) {
+        // Forbidden keywords found = error
+        status = 'forbidden';
+        unitMarks = 0;
+      } else if (unit.mustHave?.length > 0 && !hasMustHave) {
+        // Must have but not found = missing
+        status = 'missing-mustHave';
+        unitMarks = 0;
+      } else if (unit.mustHave?.length > 0 && hasMustHave && found) {
+        // Must have and all found = normal marks
+        unitMarks = unit.marks || 0;
+      } else if (unit.niceToHave?.length > 0 && found) {
+        // Nice to have and found = bonus marks
+        unitMarks = (unit.marks || 0) + 0.5;
+      } else if (found) {
+        // Regular found unit
+        unitMarks = unit.marks || 0;
+      }
+
+      return { unit, i, found, unitMarks, status, hasMustHave, hasForbidden };
+    });
+
+    // Calculate score based on unit marks and rules
+    const rules = p.rules || {};
+    // Support both naming conventions: maxMarks or maxMarks
+    const maxMarks = rules.maxMarks || marks;
+
+    // Support both part-level and rules-level noDoubleCount/group (for Gemini compatibility)
+    const noDoubleCounting = p.noDoubleCount || p.noDoubleCounting || rules.noDoubleCounting || rules.noDoubleCount;
+    const groupMode = p.group || rules.group || rules.mode === 'group';
+
+    let score = 0;
+
+    if (groupMode) {
+      // Group mode: only count first match of each concept
+      const seen = new Set();
+      results.forEach(r => {
+        if (r.found) {
+          const key = r.unit.group || r.unit.groupId || r.unit.text;
+          if (!seen.has(key)) {
+            score += r.unitMarks;
+            seen.add(key);
+          }
+        }
+      });
+    } else if (noDoubleCounting) {
+      // No double count: avoid scoring similar ideas twice
+      const seen = new Set();
+      results.forEach(r => {
+        if (r.found) {
+          const key = r.unit.group || r.unit.groupId || r.unit.text;
+          if (!seen.has(key)) {
+            score += r.unitMarks;
+            seen.add(key);
+          }
+        }
+      });
+    } else {
+      // Normal: sum all matched unit marks
+      score = results.filter(r => r.found).reduce((sum, r) => sum + r.unitMarks, 0);
+    }
+
+    score = Math.min(score, maxMarks);
+    const matchedCount = results.filter(r => r.found).length;
+    const scoreColor = score >= maxMarks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+    html = `
+      <div class="border border-slate-200 rounded-xl overflow-hidden">
+        <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+          <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${maxMarks}</span></div>
+          <div class="text-xs text-slate-400">${matchedCount} unit ditemui daripada ${p.markingUnits.length}${p.group || p.noDoubleCount ? ' (tanpa duplikat)' : ''}</div>
+        </div>
+        <div class="p-4 space-y-2">
+          ${results.map(({unit, i, found, status, hasMustHave, hasForbidden}) => {
+            let icon = '❌';
+            let textClass = 'text-slate-300';
+            const badges = [];
+
+            if (hasForbidden) {
+              icon = '⛔';
+              textClass = 'text-red-400';
+              badges.push('⛔禁词');
+            } else if (status === 'missing-mustHave') {
+              icon = '⚠️';
+              textClass = 'text-amber-600';
+              badges.push('🔴缺');
+            } else if (found) {
+              icon = '✅';
+              textClass = 'text-slate-700';
+              if (unit.mustHave?.length > 0) badges.push('🔴必');
+              if (unit.niceToHave?.length > 0) badges.push('🟢加');
+            }
+
+            return `
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
+              <div class="flex-1">
+                <div class="text-sm leading-relaxed font-medium ${textClass}">
+                  ${badges.length > 0 ? badges.join(' ') + ' ' : ''}${escHtml(unit.text)}
+                </div>
+                ${unit.aliases?.length > 0 ? `<div class="text-xs text-slate-500 mt-0.5">别名: ${unit.aliases.map(a => escHtml(a)).join(', ')}</div>` : ''}
+                ${unit.mustHave?.length > 0 ? `<div class="text-xs text-red-500 mt-0.5">必须: ${unit.mustHave.map(m => escHtml(m)).join(', ')}</div>` : ''}
+                ${unit.niceToHave?.length > 0 ? `<div class="text-xs text-green-600 mt-0.5">加分: ${unit.niceToHave.map(n => escHtml(n)).join(', ')}</div>` : ''}
+                ${unit.forbidden?.length > 0 ? `<div class="text-xs text-red-600 mt-0.5">禁: ${unit.forbidden.map(f => escHtml(f)).join(', ')}</div>` : ''}
+                ${unit.intent ? `<div class="text-xs text-slate-400 mt-0.5">意图: ${escHtml(unit.intent)}</div>` : ''}
+              </div>
+              <span class="shrink-0 text-sm">${icon}</span>
+            </div>
+          `}).join('')}
+        </div>
+      </div>`;
+  } else {
+    // schemaVersion 1: markingPoints
+    const mpList = useEN
+      ? (p?.markingPointsEN?.length ? p.markingPointsEN : p?.markingPoints)
+      : p?.markingPoints;
+
+    if (!mpList?.length) return;
+
+    const tWords = tLower.split(/\s+/)
+      .map(w => w.replace(/[^a-z0-9]/g, ''))
+      .filter(w => w.length >= 4 && !stopWords.has(w));
+
+    const results = mpList.map((pt, i) => {
+      const ptLower = pt.toLowerCase();
+      const mWords = ptLower.split(/\s+/)
+        .map(w => w.replace(/[^a-z0-9]/g, ''))
+        .filter(w => w.length >= 4 && !stopWords.has(w));
+      const found = mWords.length > 0 && mWords.some(mw =>
+        tLower.includes(mw) ||
+        tWords.some(tw => mw.includes(tw) && tw.length >= 4)
+      );
+      return { pt, i, found };
+    });
+
+    const matched = results.filter(r => r.found).length;
+    const score = Math.min(matched, marks);
+    const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+    html = `
+      <div class="border border-slate-200 rounded-xl overflow-hidden">
+        <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+          <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+          <div class="text-xs text-slate-400">${matched} isi ditemui daripada ${mpList.length}</div>
+        </div>
+        <div class="p-4 space-y-2">
+          ${results.map(({pt, i, found}) => `
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${prefix}${i+1}</span>
+              <div class="flex-1 text-sm leading-relaxed ${found ? 'text-slate-700' : 'text-slate-300'}">${escHtml(pt)}</div>
+              <span class="shrink-0 text-sm">${found ? '✅' : '❌'}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  // 添加 modelAnswer 对比（如果存在）
+  if (p.modelAnswer) {
+    const modelLower = p.modelAnswer.toLowerCase();
+    const modelWords = modelLower.split(/\s+/)
+      .map(w => w.replace(/[^a-z0-9]/g, ''))
+      .filter(w => w.length >= 4 && !stopWords.has(w));
+
+    const studentWords = tLower.split(/\s+/)
+      .map(w => w.replace(/[^a-z0-9]/g, ''))
+      .filter(w => w.length >= 4 && !stopWords.has(w));
+
+    const modelMatches = studentWords.filter(sw =>
+      modelWords.some(mw => mw.includes(sw) && sw.length >= 4)
+    ).length;
+
+    const matchRate = modelWords.length > 0 ? Math.round((modelMatches / modelWords.length) * 100) : 0;
+
+    const modelHtml = `
+      <div class="mt-3 border-t border-slate-200 pt-3">
+        <div class="text-xs font-semibold text-slate-600 mb-2">📄 Perbandingan dengan Jawapan Model</div>
+        <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
+          <div class="mb-2"><strong>Jawapan Model:</strong> <span class="text-slate-700">${escHtml(p.modelAnswer)}</span></div>
+          <div class="text-slate-600">Kecocokan kata kunci: <strong>${matchRate}%</strong> (${modelMatches}/${modelWords.length} kata kunci ditemui)</div>
+        </div>
+      </div>`;
+
+    html += modelHtml;
+  }
 
   const resEl = document.getElementById(`res-${qi}-${pi}`);
   if (resEl) { resEl.innerHTML = html; resEl.classList.remove('hidden'); }
