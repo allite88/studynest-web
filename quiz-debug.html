@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Debug — Allite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-2xl mx-auto bg-white rounded-lg shadow p-6">
+    <h1 class="text-2xl font-bold mb-4">🔍 Quiz 调试工具</h1>
+
+    <div id="status" class="mb-4 p-4 bg-blue-100 rounded text-blue-800">
+      加载中...
+    </div>
+
+    <div id="results" class="space-y-4"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDvByIOc0HV6tOaighb44A9UIQmZ46mjOA",
+      authDomain: "allite-platform.firebaseapp.com",
+      projectId: "allite-platform",
+      storageBucket: "allite-platform.firebasestorage.app",
+      messagingSenderId: "989451608043",
+      appId: "1:989451608043:web:c33de8fdcc3383dbc6c3ae"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const statusEl = document.getElementById('status');
+    const resultsEl = document.getElementById('results');
+
+    async function debug() {
+      try {
+        statusEl.innerHTML = '📋 检查 Firestore 中的 Quiz 数据...';
+
+        // 1. 检查 quizzes 集合
+        const quizzesRef = collection(db, 'quizzes');
+        const quizzesDocs = await getDocs(quizzesRef);
+
+        statusEl.innerHTML = `✅ 连接 Firebase 成功！找到 ${quizzesDocs.docs.length} 个 Quiz`;
+
+        if (quizzesDocs.docs.length === 0) {
+          resultsEl.innerHTML = `
+            <div class="bg-red-100 border border-red-400 p-4 rounded">
+              <h2 class="font-bold text-red-800 mb-2">❌ 问题：没有 Quiz 数据</h2>
+              <p class="text-red-700">Firestore 中的 <code>quizzes</code> 集合是空的。</p>
+              <p class="mt-2">💡 解决方案：</p>
+              <ol class="list-decimal list-inside mt-2 text-red-700">
+                <li>打开 allite.space/admin.html</li>
+                <li>登录你的 Google 账户</li>
+                <li>在 Content Tab 中创建一个 Trial Paper</li>
+                <li>为该 Paper 的某个 slot 设置 Quiz</li>
+                <li>添加题目并保存</li>
+              </ol>
+            </div>
+          `;
+          return;
+        }
+
+        // 2. 列出所有 Quiz
+        let html = '<h2 class="text-xl font-bold mb-3">📚 找到的 Quiz：</h2>';
+        html += '<div class="space-y-3">';
+
+        quizzesDocs.docs.forEach((doc, idx) => {
+          const data = doc.data();
+          html += `
+            <div class="bg-gray-100 p-4 rounded border-l-4 border-green-500">
+              <p class="font-bold">Quiz ${idx + 1}: ${doc.id}</p>
+              <p class="text-sm text-gray-600">📝 标题: ${data.title || '(无)'}</p>
+              <p class="text-sm text-gray-600">📊 题目数: ${data.questions?.length || 0}</p>
+              <p class="text-sm text-gray-600">📌 Content ID: ${data.contentId || '(无)'}</p>
+              <p class="text-sm text-gray-600">🔗 Slot: ${data.slotKey || '(无)'}</p>
+              <div class="mt-2">
+                <a href="quiz.html?id=${doc.id}" target="_blank"
+                   class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm inline-block">
+                  📺 打开 Quiz
+                </a>
+                <button onclick="copyToClipboard('${doc.id}')"
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm ml-2">
+                  📋 复制 ID
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+        html += '</div>';
+
+        // 3. 测试链接
+        if (quizzesDocs.docs.length > 0) {
+          const firstId = quizzesDocs.docs[0].id;
+          html += `
+            <div class="bg-green-100 border border-green-400 p-4 rounded mt-4">
+              <h3 class="font-bold text-green-800 mb-2">✅ 测试链接</h3>
+              <p class="text-green-700">点击下面的链接测试 Quiz 是否正常显示：</p>
+              <a href="quiz.html?id=${firstId}" target="_blank"
+                 class="block mt-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-center">
+                🎯 点击测试 Quiz
+              </a>
+            </div>
+          `;
+        }
+
+        resultsEl.innerHTML = html;
+
+      } catch (error) {
+        statusEl.innerHTML = '❌ Firebase 连接失败';
+        resultsEl.innerHTML = `
+          <div class="bg-red-100 border border-red-400 p-4 rounded">
+            <p class="text-red-700 font-bold mb-2">错误信息：</p>
+            <code class="text-red-600 text-sm">${error.message}</code>
+            <p class="text-red-700 mt-3">💡 检查事项：</p>
+            <ul class="list-disc list-inside text-red-700">
+              <li>确保 allite.space 在 Firebase 的授权域名中</li>
+              <li>检查 Firestore 规则是否允许读取</li>
+              <li>检查浏览器控制台是否有错误（F12）</li>
+            </ul>
+          </div>
+        `;
+      }
+    }
+
+    window.copyToClipboard = (text) => {
+      navigator.clipboard.writeText(text);
+      alert('已复制: ' + text);
+    };
+
+    debug();
+  </script>
+</body>
+</html>
