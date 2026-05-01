@@ -70,8 +70,11 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: 'ok' };
   }
 
-  // ── Subject / bundle / core5 / all_access ─────────────────────────
+  // ── Subject / bundle / core5 / all_access / new plans ────────────
   const purchases = {};
+  const now = Date.now();
+  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+  const oneYear = 365 * 24 * 60 * 60 * 1000;
 
   if (plan === 'all_access') {
     purchases.all_access = true;
@@ -80,6 +83,26 @@ exports.handler = async (event) => {
     purchases.core5 = true;
     // Also grant individual bundle access for all Core5 subjects
     CORE5.forEach(s => { purchases[`${s}_bundle`] = true; });
+
+  } else if (plan === 'trial_pass') {
+    purchases.trial_pass = true;
+    purchases.trial_pass_expiresAt = now + thirtyDays;
+
+  } else if (plan === 'pro_yearly') {
+    purchases.pro_yearly = true;
+    purchases.pro_yearly_expiresAt = now + oneYear;
+    purchases.all_access = true; // Pro includes full access
+
+  } else if (plan === 'premium_yearly') {
+    purchases.premium_yearly = true;
+    purchases.premium_yearly_expiresAt = now + oneYear;
+    purchases.pro_yearly = true; // Premium includes Pro
+    purchases.all_access = true; // Premium includes full access
+
+  } else if (plan === 'sejarah_sprint') {
+    purchases.sejarah_sprint = true;
+    purchases.sejarah_sprint_expiresAt = now + thirtyDays;
+    purchases.Sejarah_sprint = true; // Also set for backward compatibility
 
   } else if (plan.endsWith('_papers')) {
     const subj = plan.replace('_papers', '');

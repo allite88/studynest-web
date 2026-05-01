@@ -185,17 +185,47 @@
     };
     window._clearPurchasesCache = () => { _purchasesCache = null; };
 
+    // Helper: check if a plan has expired
+    const isExpired = (expiresAt) => {
+      if (!expiresAt) return false;
+      return Date.now() > expiresAt;
+    };
+
     const CORE5_SUBJECTS = ['BM','BI','Math','Sejarah','Sains'];
     window._hasSubjectAccess = async (subject, type) => {
-      // type: 'papers' | 'bundle'
+      // type: 'papers' | 'bundle' | 'quiz' | 'by-topic' | 'k2-practice'
       const uid = auth.currentUser?.uid;
       if (!uid) return false;
       const p = await window._getPurchases(uid);
+
+      // Check Pro (full access, non-expired)
+      if (p.pro_yearly && !isExpired(p.pro_yearly_expiresAt)) return true;
+
+      // Check Premium (includes Pro, non-expired)
+      if (p.premium_yearly && !isExpired(p.premium_yearly_expiresAt)) return true;
+
+      // Check Trial Pass (limited access, non-expired)
+      if (p.trial_pass && !isExpired(p.trial_pass_expiresAt)) {
+        // Trial only gives quiz, limited papers, limited k2 practice
+        return type === 'quiz' || type === 'limited-papers' || type === 'limited-k2';
+      }
+
+      // Check Sprint Pack for specific subject (non-expired)
+      if (p.sejarah_sprint && !isExpired(p.sejarah_sprint_expiresAt) && subject === 'Sejarah') {
+        return type === 'quiz' || type === 'papers' || type === 'k2-practice' || type === 'bundle';
+      }
+
+      // Check old all_access (no expiry check for old users)
       if (p.all_access) return true;
+
+      // Check Core5 (no expiry check for old users)
       if (p.core5 && CORE5_SUBJECTS.includes(subject)) return true;
+
+      // Check subject-specific purchases (no expiry check for old users)
       if (type === 'bundle') return !!(p[`${subject}_bundle`]);
       return !!(p[`${subject}_papers`] || p[`${subject}_bundle`]);
     };
+
     window._hasCollectionAccess = async (contentId) => {
       const uid = auth.currentUser?.uid;
       if (!uid) return false;
@@ -306,31 +336,16 @@
       <span class="font-bold text-base" style="color:var(--text)">A<sup style="font-size:.65em;vertical-align:super;color:#dc2626">+</sup>llite</span>
     </button>
 
-    <!-- Nav (desktop) -->
+    <!-- Nav (desktop) — compact version -->
     <nav class="hidden md:flex items-center gap-1">
-      <button onclick="nav('home')"       class="nav-pill nav-idle" id="n-home">Home</button>
       <button onclick="goK2Demo()" class="nav-pill nav-idle">K2 Demo</button>
-      <button onclick="nav('papers')"    class="nav-pill nav-idle" id="n-papers">Trial Papers</button>
-      <button onclick="nav('notes')"     class="nav-pill nav-idle" id="n-notes">📖 Notes/Guides</button>
-      <button onclick="window.location.href='topics.html'" class="nav-pill nav-idle">🗂 By Topic</button>
-      <button onclick="nav('collection')" class="nav-pill nav-idle" id="n-collection">📦 Collection</button>
-      <button onclick="nav('books')"     class="nav-pill nav-idle" id="n-books">📚 Books</button>
-      <button onclick="nav('careers')"   class="nav-pill nav-idle" id="n-careers">🎓 Careers</button>
-      <button onclick="nav('pricing')"   class="nav-pill nav-idle" id="n-pricing"
+      <button onclick="nav('papers')" class="nav-pill nav-idle" id="n-papers">Trial Papers</button>
+      <button onclick="nav('pricing')" class="nav-pill nav-idle" id="n-pricing"
         style="background:var(--amber-l);color:var(--amber)">💎 Pricing</button>
     </nav>
 
-    <!-- Auth + Cart -->
+    <!-- Auth + Menu -->
     <div class="flex items-center gap-2 shrink-0">
-      <!-- Cart -->
-      <button onclick="nav('cart')" class="relative p-2 rounded-xl hover:bg-green-50 transition-colors" id="cart-btn" style="display:none">
-        <svg class="w-5 h-5" style="color:var(--green)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.6 8H19M7 13l-2-8m5 8v6m4-6v6"/>
-        </svg>
-        <span class="cart-badge" id="cart-count" style="display:none">0</span>
-      </button>
-
       <!-- Logged out -->
       <button id="btn-login" onclick="window._login()"
         class="hidden items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl border transition-colors btn-outline">
@@ -338,15 +353,48 @@
         Sign in
       </button>
 
-      <!-- Logged in -->
-      <div id="user-chip" class="hidden items-center gap-2">
-        <img id="user-avatar" src="" class="w-8 h-8 rounded-full border-2 border-green-200" alt=""/>
-        <span id="badge-prem" class="hidden text-xs font-bold px-2 py-0.5 rounded-full"
-          style="background:var(--amber-l);color:var(--amber)">⭐ Ahli</span>
-        <button id="btn-upgrade" onclick="nav('pricing')"
-          class="hidden text-xs font-bold px-3 py-1 rounded-full transition-colors"
-          style="background:var(--amber-l);color:var(--amber)">💎 Upgrade</button>
-        <button onclick="window._logout()" class="text-xs hover:underline" style="color:var(--muted)">Sign out</button>
+      <!-- Logged in: Avatar + Dropdown Menu -->
+      <div id="user-chip" class="hidden relative">
+        <button onclick="document.getElementById('nav-dropdown').classList.toggle('hidden')"
+          class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 transition-colors">
+          <img id="user-avatar" src="" class="w-8 h-8 rounded-full border-2 border-green-200" alt=""/>
+          <svg class="w-4 h-4" style="color:var(--muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+          </svg>
+        </button>
+
+        <!-- Dropdown menu -->
+        <div id="nav-dropdown" class="hidden absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-48">
+          <button onclick="nav('pricing'); document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            💎 Upgrade to Pro
+          </button>
+          <button onclick="nav('notes'); document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            📖 Notes/Guides
+          </button>
+          <button onclick="window.location.href='topics.html'; document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            🗂 By Topic
+          </button>
+          <button onclick="nav('collection'); document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            📦 Collection
+          </button>
+          <button onclick="nav('books'); document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            📚 Books
+          </button>
+          <button onclick="nav('careers'); document.getElementById('nav-dropdown').classList.add('hidden')"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--text)">
+            🎓 Careers
+          </button>
+          <div class="border-t border-gray-200"></div>
+          <button onclick="window._logout()"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50" style="color:var(--muted)">
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -382,23 +430,37 @@
             </button>
           </div>
         </div>
-        <!-- Right: Demo preview card -->
+        <!-- Right: Demo result showcase -->
         <div class="card p-5">
-          <div class="bg-blue-50 p-4 rounded-lg mb-4">
-            <div class="text-xs font-bold text-blue-700 mb-2">📝 Contoh Soalan</div>
+          <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+            <div class="text-xs font-bold text-blue-700 mb-2">📝 Soalan</div>
             <p class="text-sm font-medium" style="color:var(--text)">Jelaskan dua sebab pembentukan Malaysia. [4 markah]</p>
           </div>
-          <div class="bg-green-50 p-4 rounded-lg mb-4">
-            <div class="text-xs font-bold text-green-700 mb-2">✍️ Jawapan Pelajar</div>
-            <p class="text-sm" style="color:var(--text)">"...menghalang pengaruh komunis dan menyatukan negeri-negeri."</p>
+          <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+            <div class="text-xs font-bold text-gray-700 mb-2">✍️ Jawapan Pelajar</div>
+            <p class="text-sm italic" style="color:var(--text)">"...menghalang pengaruh komunis dan menyatukan negeri-negeri."</p>
           </div>
-          <div class="bg-amber-50 p-4 rounded-lg">
+          <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
             <div class="text-xs font-bold" style="color:var(--amber)">📊 Markah Anggaran</div>
-            <p class="text-2xl font-bold mt-2" style="color:var(--text)">2 / 4</p>
-            <div class="text-xs mt-3 space-y-1" style="color:var(--muted)">
-              <div>✅ <strong>Isi kena:</strong> ancaman komunis, menyatukan negeri</div>
-              <div>❌ <strong>Isi hilang:</strong> kemerdekaan Sabah/Sarawak, kerjasama ekonomi</div>
+            <p class="text-3xl font-bold mt-2" style="color:var(--amber)">2 / 4</p>
+          </div>
+          <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+            <div class="text-xs font-bold text-green-700 mb-2">✅ Isi Kena</div>
+            <div class="text-xs space-y-1" style="color:var(--text)">
+              <div>• Membendung ancaman komunis</div>
+              <div>• Menyatukan negeri-negeri</div>
             </div>
+          </div>
+          <div class="mb-4 pb-4 border-b" style="border-color:#E4EDE6">
+            <div class="text-xs font-bold text-red-700 mb-2">❌ Isi Hilang (Kurang Markah)</div>
+            <div class="text-xs space-y-1" style="color:var(--text)">
+              <div>• Mempercepat kemerdekaan Sabah/Sarawak</div>
+              <div>• Mengukuhkan kerjasama ekonomi</div>
+            </div>
+          </div>
+          <div class="bg-green-50 p-3 rounded-lg">
+            <div class="text-xs font-bold text-green-700 mb-2">💡 Jawapan Lebih Kuat</div>
+            <p class="text-xs" style="color:var(--text)">Pembentukan Malaysia bertujuan membendung ancaman komunis, mempercepat kemerdekaan Sabah dan Sarawak, mengukuhkan kerjasama ekonomi, serta menyatukan negeri-negeri serantau.</p>
           </div>
         </div>
       </div>
@@ -1307,18 +1369,18 @@
             <span class="text-3xl font-extrabold" style="color:var(--text)">RM199</span>
             <span class="text-xs ml-0.5" style="color:var(--muted)">setahun</span>
           </div>
-          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar yang mahu bantuan lebih mendalam dan latihan exam lebih serius.</p>
+          <p class="text-xs mb-4" style="color:var(--muted)">Untuk pelajar yang mahu review lebih mendalam. Advanced review features released gradually.</p>
           <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
             <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Semua dalam Pro</li>
-            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>AI essay review lanjutan</li>
+            <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Review jawapan lanjutan</li>
             <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>KBAT / jawapan kompleks</li>
             <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Predicted questions</li>
             <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Personal study plan</li>
             <li class="flex gap-2"><span class="text-green-600 shrink-0">✓</span>Priority new content</li>
           </ul>
-          <button onclick="if(!window._getUid()){window._login()}else{startPayment('premium_yearly',this)}"
-            class="btn-primary w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
-            Pilih Premium
+          <button onclick="alert('Premium sedang dalam pembangunan. Daftar sekarang untuk akses awal!')"
+            class="btn-outline w-full py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            Join Waitlist
           </button>
         </div>
 

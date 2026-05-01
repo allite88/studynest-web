@@ -1,0 +1,50 @@
+// Firestore 规则 — 复制这个到 Firebase Console
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 允许所有人读取 public 数据（quizzes, content, qa 等）
+    match /quizzes/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    match /content/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    match /qa/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    match /k2-marking-schemes/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    // 用户数据 — 只允许个人读写自己的数据
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    // 购买记录
+    match /purchases/{uid} {
+      allow read: if request.auth.uid == uid;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    // 配置 — 只读
+    match /config/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.email == 'sgece88@gmail.com';
+    }
+
+    // 其他都拒绝
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

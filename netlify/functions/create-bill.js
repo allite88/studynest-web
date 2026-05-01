@@ -75,7 +75,7 @@ exports.handler = async (event) => {
     billLabel = `Allite Collection`;
 
   } else {
-    // Subject or bundle plans — read from config/pricing
+    // Subject / bundle / new plan types — read from config/pricing
     const pSnap = await db.doc('config/pricing').get();
     const pricing = pSnap.exists ? pSnap.data() : {};
 
@@ -85,6 +85,18 @@ exports.handler = async (event) => {
     } else if (plan === 'core5') {
       amountSen = pricing.core5 || 6900;
       billLabel = 'Allite Core 5 Bundle';
+    } else if (plan === 'trial_pass') {
+      amountSen = pricing.trialPass || 1900;
+      billLabel = 'Allite Trial Pass - 30 Days';
+    } else if (plan === 'pro_yearly') {
+      amountSen = pricing.proYearly || 12900;
+      billLabel = 'Allite Pro Yearly';
+    } else if (plan === 'premium_yearly') {
+      amountSen = pricing.premiumYearly || 19900;
+      billLabel = 'Allite Premium Yearly';
+    } else if (plan === 'sejarah_sprint') {
+      amountSen = pricing.serahSprint || pricing.sprints?.Sejarah || 2900;
+      billLabel = 'Allite Sejarah Sprint Pack - 30 Days';
     } else if (plan.endsWith('_papers')) {
       const subj = plan.replace('_papers', '');
       amountSen = pricing.subjects?.[subj]?.papers || 1490;
