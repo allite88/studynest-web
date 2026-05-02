@@ -14,6 +14,8 @@
 <link rel="canonical" href="https://allite.space/qa.html"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
 <script type="application/ld+json">
 {
@@ -43,6 +45,7 @@
   window._authReady  = new Promise(r => onAuthStateChanged(auth, r));
   window._getQADoc   = async (id) => { const s = await getDoc(doc(db,'qa',id)); return s.exists()?{id:s.id,...s.data()}:null; };
   window._getContent = async (id) => { const s = await getDoc(doc(db,'content',id)); return s.exists()?{id:s.id,...s.data()}:null; };
+  window._getK2Marking = async (markingId) => { const s = await getDoc(doc(db,'k2-marking-schemes',markingId)); return s.exists()?{id:s.id,...s.data()}:null; };
 </script>
 <style>
   * { font-family: 'Inter', system-ui, sans-serif; }
@@ -99,6 +102,25 @@ const STEP_PALETTE = [
 
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMath(text, mathText, idSuffix = '') {
+  // If no math version, return escaped text
+  if (!mathText) return escHtml(text || '');
+
+  // Return a span that will be rendered with KaTeX
+  const id = 'math-' + Math.random().toString(36).substr(2, 9) + (idSuffix ? '-' + idSuffix : '');
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el && window.katex) {
+      try {
+        window.katex.render(mathText, el);
+      } catch(e) {
+        el.innerText = text || mathText;
+      }
+    }
+  }, 0);
+  return `<span id="${id}" class="katex-render"></span>`;
 }
 
 function getPartAnswerType(part) {
@@ -339,6 +361,7 @@ function renderPart(p, pi, qi) {
   const tipId   = `tip-${qi}-${pi}`;
   const useEN   = _contentLang === 'bilingual' && _displayLang === 'en';
   const qText   = useEN ? (p.qEN || p.q) : p.q;
+  const qMath   = isMath() ? (useEN ? p.qMathEN : p.qMath) : null;
 
   // Detect schema version 2 (markingUnits, steps, or other v2 types present)
   const hasMarkingUnits = p.markingUnits?.length > 0;
@@ -346,7 +369,7 @@ function renderPart(p, pi, qi) {
   const hasTable = p.table?.rows?.length > 0;
   const hasRubric = p.rubric?.bands?.length > 0;
   const hasDiagram = p.diagram?.imageUrl;
-  const isCalculationSteps = hasSteps; // calculation_steps = manual marking, no auto-check
+  const answerType = getPartAnswerType(p);
 
   let schemaContent = '';
   let hasAnswerInfo = false;
@@ -358,25 +381,32 @@ function renderPart(p, pi, qi) {
     hasAnswerInfo = true;
     allowAutoCheck = true;
   } else if (hasSteps) {
-    // schemaVersion 2: calculation_steps — show expected answers only, no auto-check
+    // schemaVersion 2: calculation_steps — auto-check enabled
     schemaContent = renderCalculationSteps(p.steps, p.marks||0, p.vocab);
     hasAnswerInfo = true;
-    allowAutoCheck = false; // Manual marking required
+    allowAutoCheck = true;
   } else if (hasTable) {
-    // schemaVersion 2: table_cells — manual marking
+    // schemaVersion 2: table_cells — auto-check enabled
     schemaContent = renderTableCells(p.table, p.vocab);
     hasAnswerInfo = true;
-    allowAutoCheck = false;
+    allowAutoCheck = true;
   } else if (hasRubric) {
     // schemaVersion 2: rubric_based — manual marking
     schemaContent = renderRubric(p.rubric, p.vocab);
     hasAnswerInfo = true;
     allowAutoCheck = false;
   } else if (hasDiagram) {
-    // schemaVersion 2: diagram_label — manual marking
+    // schemaVersion 2: diagram_label — auto-check enabled
     schemaContent = renderDiagramLabel(p.diagram, p.vocab);
     hasAnswerInfo = true;
-    allowAutoCheck = false;
+    allowAutoCheck = true;
+  } else if (answerType === 'final_numeric') {
+    // schemaVersion 2: final_numeric — auto-check enabled
+    const unitText = p.unit ? ` ${p.unit}` : '';
+    const toleranceText = p.tolerance ? ` ± ${p.tolerance}` : '';
+    schemaContent = `<div class="ans-box-math rounded-xl p-4 mt-3 text-sm">Jawapan dijangka: <strong>${escHtml(String(p.expected ?? ''))}</strong>${unitText}${toleranceText}</div>`;
+    hasAnswerInfo = true;
+    allowAutoCheck = true;
   } else {
     // schemaVersion 1: old markingPoints or answer text
     const hasMP   = useEN ? (p.markingPointsEN?.length > 0 || p.markingPoints?.length > 0)
@@ -396,6 +426,18 @@ function renderPart(p, pi, qi) {
     }
   }
 
+  // Type-aware textarea placeholder
+  let inputPlaceholder = "Tulis jawapan anda di sini...";
+  if (answerType === 'calculation_steps') {
+    inputPlaceholder = "Tulis penyelesaian (sertakan semua langkah)...";
+  } else if (answerType === 'final_numeric') {
+    inputPlaceholder = "Tulis jawapan nombor anda (contoh: 42.5 cm)...";
+  } else if (answerType === 'table_cells') {
+    inputPlaceholder = "Tulis isi jadual (baris demi baris)...";
+  } else if (answerType === 'diagram_label') {
+    inputPlaceholder = "Label diagram: A = ..., B = ...";
+  }
+
   const writeBtn = (hasAnswerInfo && allowAutoCheck)
     ? `<button onclick="toggleWrite('${qi}','${pi}')" id="wbtn-${qi}-${pi}"
          class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl transition font-semibold">
@@ -405,14 +447,14 @@ function renderPart(p, pi, qi) {
 
   const studentSection = (hasAnswerInfo && allowAutoCheck)
     ? `<div id="write-${qi}-${pi}" class="hidden mt-3">
-        <textarea id="inp-${qi}-${pi}" class="write-area" rows="5" placeholder="Tulis jawapan anda di sini..."></textarea>
+        <textarea id="inp-${qi}-${pi}" class="write-area" rows="5" placeholder="${escAttr(inputPlaceholder)}"></textarea>
         <button onclick="checkAnswer('${qi}','${pi}')"
           class="mt-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl font-semibold transition">
           ✅ Semak Jawapan
         </button>
         <div id="res-${qi}-${pi}" class="hidden mt-3"></div>
       </div>`
-    : (isCalculationSteps ? `<div class="hidden mt-3 text-xs text-slate-500 italic">💡 Jenis soalan ini memerlukan penilaian manual.</div>` : '');
+    : '';
 
   const schemaLabel = hasAnswerInfo ? '👁 Lihat Skema' : '👁 Lihat Jawapan';
 
@@ -421,7 +463,7 @@ function renderPart(p, pi, qi) {
       <span class="text-xs font-bold text-emerald-700 mt-0.5 shrink-0">(${letter})</span>
       <div class="flex-1">
         ${renderImages(p.qImgs)}
-        <div class="text-sm text-slate-700 leading-relaxed">${escHtml(qText)}</div>
+        <div class="text-sm text-slate-700 leading-relaxed">${renderMath(qText, qMath, qi+'-'+pi)}</div>
       </div>
       <span class="text-xs font-semibold text-slate-400 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded">${p.marks||0}m</span>
     </div>
@@ -447,6 +489,7 @@ function renderQuestion(q, i) {
   const tipId  = `tip-${i}-main`;
   const useEN  = _contentLang === 'bilingual' && _displayLang === 'en';
   const qText  = useEN ? (q.qEN || q.q) : q.q;
+  const qMath  = isMath() ? (useEN ? q.qMathEN : q.qMath) : null;
   const mainAns = useEN ? (q.answerEN || q.answer) : q.answer;
   const tipHtml = parts.length === 0 ? renderTip(q.tip, q.tipCN, q.tipEN, tipId) : '';
   return `<div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4 shadow-sm">
@@ -455,7 +498,7 @@ function renderQuestion(q, i) {
       <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">${totalM}m</span>
     </div>
     ${renderImages(q.qImgs)}
-    ${qText ? `<div class="text-sm font-medium text-slate-700 leading-relaxed mb-4">${escHtml(qText)}</div>` : ''}
+    ${qText ? `<div class="text-sm font-medium text-slate-700 leading-relaxed mb-4">${renderMath(qText, qMath, i+'-main')}</div>` : ''}
     ${parts.length > 0
       ? parts.map((p, pi) => renderPart(p, pi, i)).join('')
       : `<div>
@@ -505,6 +548,262 @@ window.toggleWrite = (qi, pi) => {
 const STOP_BM = new Set(['yang','dan','atau','dengan','dalam','untuk','kepada','oleh','ini','itu','dari','pada','akan','telah','sudah','juga','bagi','serta','pula','lagi','ialah','adalah','daripada','melalui','terhadap','antara','setiap','dapat','harus','lebih','jika','apabila','kerana','sebab','akibat','iaitu','seperti','menjadi','boleh','tidak','perlu','secara','selepas','sebelum','semua','semasa']);
 const STOP_EN = new Set(['the','and','or','with','in','for','to','of','is','are','was','were','a','an','this','that','by','on','at','from','has','have','had','also','which','when','where','who','its','their','they','been','will','can','may','must','not','but','into','than','then','each','all','any','be','as','it','its','about','such','these','those']);
 
+// Shared tokenization helper for all scorers
+function _tokenize(text, stopWords) {
+  return text.toLowerCase().split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9]/g, ''))
+    .filter(w => w.length >= 4 && !stopWords.has(w));
+}
+
+// Merge K2 marking scheme units into QA questions (from k2-marking-schemes collection)
+function _mergeK2Scheme(questions, k2Parts) {
+  let k2Idx = 0;
+  for (const q of (questions || [])) {
+    for (const part of (q.parts || [])) {
+      const k2p = k2Parts[k2Idx++];
+      if (!k2p) return;
+      // Only inject if k2 has markingUnits AND part doesn't already have v2 scoring data
+      if (k2p.markingUnits?.length && !part.markingUnits?.length
+          && !part.steps && !part.rubric && !part.table) {
+        part.markingUnits = k2p.markingUnits;
+        if (k2p.rules) part.rules = k2p.rules;
+        if (!part.marks && k2p.marks) part.marks = k2p.marks;
+      }
+    }
+  }
+}
+
+// Scoring functions for different answerTypes
+function _scoreCalculationSteps(p, text, stopWords, palette, prefix) {
+  const math = isMath();
+  const marks = p.marks || 0;
+  let score = 0;
+  let prevStepFound = true;
+
+  const results = (p.steps || []).map((step, i) => {
+    if (!step.expected && !step.keywords?.length) {
+      return { step, i, found: false, marks: 0, ecfAwarded: false, status: 'skipped' };
+    }
+
+    const keywordPool = step.keywords?.length ? step.keywords : [step.expected];
+    const searchText = keywordPool.join(' ').toLowerCase();
+    const unitWords = _tokenize(searchText, stopWords);
+
+    const found = unitWords.length > 0 && unitWords.some(uw =>
+      text.includes(uw) ||
+      _tokenize(text, stopWords).some(tw => uw.includes(tw) && tw.length >= 4)
+    );
+
+    let stepMarks = 0;
+    let ecfAwarded = false;
+
+    if (found) {
+      stepMarks = step.marks || 0;
+      prevStepFound = true;
+    } else if (step.ecf && !prevStepFound) {
+      stepMarks = step.marks || 0;
+      ecfAwarded = true;
+    }
+
+    if (stepMarks > 0) score += stepMarks;
+
+    return { step, i, found, marks: step.marks || 0, ecfAwarded, status: found ? 'found' : 'missing' };
+  });
+
+  score = Math.min(score, marks);
+
+  const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+  let html = `
+    <div class="border border-slate-200 rounded-xl overflow-hidden">
+      <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+        <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+        <div class="text-xs text-slate-400">${results.filter(r => r.found || r.ecfAwarded).length} langkah ditemui</div>
+      </div>
+      <div class="p-4 space-y-2">
+        ${results.filter(r => r.status !== 'skipped').map(({step, i, found, ecfAwarded}) => `
+          <div class="flex items-start gap-2">
+            <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">L${i+1}</span>
+            <div class="flex-1">
+              <div class="text-sm font-medium ${found || ecfAwarded ? 'text-slate-700' : 'text-slate-300'}">${escHtml(step.label || '')}</div>
+              ${step.expected ? `<div class="text-xs font-mono text-slate-500 mt-0.5">Jangkaan: ${escHtml(step.expected)}</div>` : ''}
+              ${ecfAwarded ? '<span class="text-xs bg-sky-100 text-sky-700 px-1 rounded">ECF</span>' : ''}
+              ${!found && step.feedbackIfMissing ? `<div class="text-xs text-amber-700 mt-0.5 italic">💬 ${escHtml(step.feedbackIfMissing)}</div>` : ''}
+            </div>
+            <span class="shrink-0 text-xs font-semibold text-slate-500">${step.marks || 0}m</span>
+            <span class="shrink-0 text-sm">${found || ecfAwarded ? '✅' : '❌'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+
+  const missedSteps = results.filter(r => !r.found && !r.ecfAwarded && r.status !== 'skipped' && r.step.feedbackIfMissing);
+  if (missedSteps.length > 0) {
+    html += `<div class="border-t border-amber-100 px-4 py-3 bg-amber-50 rounded-b-xl">
+      <div class="text-xs font-semibold text-amber-700 mb-1">💡 Cara naikkan markah</div>
+      <ul class="text-xs text-amber-800 space-y-0.5 list-disc list-inside">
+        ${missedSteps.map(r => `<li>${escHtml(r.step.feedbackIfMissing)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  return { html };
+}
+
+function _scoreFinalNumeric(p, text) {
+  const marks = p.marks || 0;
+  const numbers = text.match(/[-+]?\d+\.?\d*/g) || [];
+  const submitted = numbers.length > 0 ? parseFloat(numbers[numbers.length - 1]) : null;
+
+  let score = 0;
+  let status = 'wrong';
+
+  if (p.expected == null || isNaN(p.expected)) {
+    const html = `<div class="border border-red-200 rounded-xl overflow-hidden bg-red-50">
+      <div class="px-4 py-3 text-xs text-red-700">⚠️ Skema soalan tidak lengkap (expected tiada)</div>
+    </div>`;
+    return { html };
+  }
+
+  if (submitted !== null) {
+    const tolerance = p.tolerance ?? 0;
+    if (Math.abs(submitted - p.expected) <= tolerance) {
+      score = marks;
+      status = 'correct';
+    }
+  }
+
+  const scoreColor = status === 'correct' ? 'text-emerald-600' : 'text-red-500';
+  const unitText = p.unit ? ` ${p.unit}` : '';
+  const toleranceText = p.tolerance ? ` ± ${p.tolerance}` : '';
+
+  let html = `<div class="border border-slate-200 rounded-xl overflow-hidden">
+    <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+      <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+    </div>
+    <div class="p-4 space-y-2">
+      <div class="flex items-start gap-2">
+        <div class="flex-1">
+          <div class="text-sm font-medium">Jawapan anda: <strong class="${status === 'correct' ? 'text-emerald-600' : 'text-red-500'}">${submitted ?? '(tiada nombor)'}</strong>${unitText}</div>
+          <div class="text-xs text-slate-500 mt-1">Betul ialah: <strong>${p.expected}</strong>${unitText}${toleranceText}</div>
+        </div>
+        <span class="shrink-0 text-sm">${status === 'correct' ? '✅' : '❌'}</span>
+      </div>
+      ${p.unit && !text.toLowerCase().includes(p.unit.toLowerCase()) ? `<div class="text-xs text-amber-700 italic">⚠️ Sertakan unit: ${escHtml(p.unit)}</div>` : ''}
+    </div>
+  </div>`;
+
+  return { html };
+}
+
+function _scoreTableCells(p, text, stopWords, palette) {
+  const marks = p.marks || 0;
+  let score = 0;
+
+  const allResults = [];
+  (p.table?.rows || []).forEach((row, ri) => {
+    (row.cells || []).forEach((cell, ci) => {
+      let expected = '', aliases = [], cellMarks = 1;
+
+      if (typeof cell === 'string') {
+        expected = cell;
+      } else if (typeof cell === 'object') {
+        expected = cell.expected || '';
+        aliases = cell.aliases || [];
+        cellMarks = cell.marks || 1;
+      }
+
+      if (!expected) return;
+
+      const searchTerms = [expected, ...aliases];
+      const searchText = searchTerms.join(' ').toLowerCase();
+      const unitWords = _tokenize(searchText, stopWords);
+
+      const found = unitWords.length > 0 && unitWords.some(uw =>
+        text.includes(uw) ||
+        _tokenize(text, stopWords).some(tw => uw.includes(tw) && tw.length >= 4)
+      );
+
+      if (found) score += cellMarks;
+      allResults.push({ row, ri, cell, ci, expected, found, marks: cellMarks });
+    });
+  });
+
+  score = Math.min(score, marks);
+  const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+  let html = `<div class="border border-slate-200 rounded-xl overflow-hidden">
+    <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+      <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+    </div>
+    <div class="p-4 space-y-3">`;
+
+  let currentRowIndex = -1;
+  allResults.forEach(({row, ri, cell, ci, expected, found, marks: cellMarks}) => {
+    if (currentRowIndex !== ri) {
+      if (currentRowIndex !== -1) html += '</div></div>';
+      html += `<div class="text-xs text-slate-500 font-semibold mt-2 mb-1">${escHtml(row.label || 'Row ' + (ri+1))}</div><div class="space-y-1">`;
+      currentRowIndex = ri;
+    }
+
+    html += `<div class="flex items-start gap-2 text-xs">
+      <div class="flex-1 font-medium ${found ? 'text-slate-700' : 'text-slate-300'}">${escHtml(expected)}</div>
+      <span class="shrink-0">${found ? '✅' : '❌'}</span>
+    </div>`;
+  });
+
+  if (currentRowIndex !== -1) html += '</div></div>';
+
+  html += `</div></div>`;
+
+  return { html };
+}
+
+function _scoreDiagramLabel(p, text, stopWords, palette) {
+  const marks = p.marks || 0;
+  const labels = p.diagram?.labels || [];
+  const marksPerLabel = labels.length > 0 ? Math.round((marks / labels.length) * 2) / 2 : 0;
+
+  let score = 0;
+
+  const results = labels.map((label, i) => {
+    const searchTerms = [label.expectedText, ...(label.aliases || [])];
+    const searchText = searchTerms.join(' ').toLowerCase();
+    const unitWords = _tokenize(searchText, stopWords);
+
+    const found = unitWords.length > 0 && unitWords.some(uw =>
+      text.includes(uw) ||
+      _tokenize(text, stopWords).some(tw => uw.includes(tw) && tw.length >= 4)
+    );
+
+    const labelMarks = label.marks ?? marksPerLabel;
+    if (found) score += labelMarks;
+
+    return { label, i, found, marks: labelMarks };
+  });
+
+  score = Math.min(score, marks);
+  const scoreColor = score >= marks ? 'text-emerald-600' : score > 0 ? 'text-amber-600' : 'text-red-500';
+
+  const html = `<div class="border border-slate-200 rounded-xl overflow-hidden">
+    <div class="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+      <div class="text-sm font-bold text-slate-700">Markah: <span class="${scoreColor}">${score} / ${marks}</span></div>
+    </div>
+    <div class="p-4 space-y-2">
+      ${results.map(({label, i, found, marks: labelMarks}) => `
+        <div class="flex items-start gap-2">
+          <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-md ${palette[i % palette.length]}">${label.id}</span>
+          <div class="flex-1 text-sm ${found ? 'text-slate-700' : 'text-slate-300'}">${escHtml(label.expectedText)}</div>
+          <span class="shrink-0 text-xs font-semibold text-slate-500">${labelMarks}m</span>
+          <span class="shrink-0 text-sm">${found ? '✅' : '❌'}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+
+  return { html };
+}
+
 window.checkAnswer = (qi, pi) => {
   const p = _qaData?.questions?.[qi]?.parts?.[pi];
   if (!p) return;
@@ -520,8 +819,22 @@ window.checkAnswer = (qi, pi) => {
 
   let html = '';
 
-  // Detect schema version 2: markingUnits
-  if (p.markingUnits?.length > 0) {
+  // Route by answerType
+  const answerType = getPartAnswerType(p);
+
+  if (answerType === 'calculation_steps' && p.steps?.length > 0) {
+    html = _scoreCalculationSteps(p, tLower, stopWords, palette, prefix).html;
+  } else if (answerType === 'final_numeric') {
+    html = _scoreFinalNumeric(p, tLower).html;
+  } else if (answerType === 'table_cells' && p.table?.rows?.length > 0) {
+    html = _scoreTableCells(p, tLower, stopWords, palette).html;
+  } else if (answerType === 'diagram_label' && p.diagram?.labels?.length > 0) {
+    html = _scoreDiagramLabel(p, tLower, stopWords, palette).html;
+  } else {
+    // Fall through to existing markingUnits / markingPoints logic
+
+    // Detect schema version 2: markingUnits
+    if (p.markingUnits?.length > 0) {
     const tWords = tLower.split(/\s+/)
       .map(w => w.replace(/[^a-z0-9]/g, ''))
       .filter(w => w.length >= 4 && !stopWords.has(w));
@@ -672,12 +985,24 @@ window.checkAnswer = (qi, pi) => {
                 ${unit.niceToHave?.length > 0 ? `<div class="text-xs text-green-600 mt-0.5">加分: ${unit.niceToHave.map(n => escHtml(n)).join(', ')}</div>` : ''}
                 ${unit.forbidden?.length > 0 ? `<div class="text-xs text-red-600 mt-0.5">禁: ${unit.forbidden.map(f => escHtml(f)).join(', ')}</div>` : ''}
                 ${unit.intent ? `<div class="text-xs text-slate-400 mt-0.5">意图: ${escHtml(unit.intent)}</div>` : ''}
+                ${!found && unit.feedbackIfMissing ? `<div class="text-xs text-amber-700 mt-0.5 italic">💬 ${escHtml(unit.feedbackIfMissing)}</div>` : ''}
               </div>
               <span class="shrink-0 text-sm">${icon}</span>
             </div>
           `}).join('')}
         </div>
       </div>`;
+
+      // Add suggestions section if there are missed units with feedbackIfMissing
+      const missedWithFeedback = results.filter(r => !r.found && r.unit.feedbackIfMissing);
+      if (missedWithFeedback.length > 0) {
+        html += `<div class="border-t border-amber-100 px-4 py-3 bg-amber-50 rounded-b-xl">
+          <div class="text-xs font-semibold text-amber-700 mb-1">📝 Cara naikkan markah</div>
+          <ul class="text-xs text-amber-800 space-y-0.5 list-disc list-inside">
+            ${missedWithFeedback.map(r => `<li>${escHtml(r.unit.feedbackIfMissing)}</li>`).join('')}
+          </ul>
+        </div>`;
+      }
   } else {
     // schemaVersion 1: markingPoints
     const mpList = useEN
@@ -722,6 +1047,7 @@ window.checkAnswer = (qi, pi) => {
           `).join('')}
         </div>
       </div>`;
+    }
   }
 
   // 添加 modelAnswer 对比（如果存在）
@@ -787,6 +1113,52 @@ async function loadQA() {
 
   _qaData = data;
 
+  // Check user entitlement
+  const uid = window._getUid?.();
+  if (uid) {
+    try {
+      const purchases = await window._getPurchases?.(uid) || {};
+      const now = Date.now();
+      const isExpired = (expiresAt) => expiresAt && expiresAt < now;
+
+      let hasAccess = false;
+
+      // Check Pro Yearly
+      if (purchases.pro_yearly && !isExpired(purchases.pro_yearly_expiresAt)) {
+        hasAccess = true;
+      }
+      // Check Premium Yearly
+      else if (purchases.premium_yearly && !isExpired(purchases.premium_yearly_expiresAt)) {
+        hasAccess = true;
+      }
+      // Check Trial Pass
+      else if (purchases.trial_pass && !isExpired(purchases.trial_pass_expiresAt)) {
+        hasAccess = true;
+      }
+      // Check Sejarah Sprint
+      else if (purchases.sejarah_sprint && !isExpired(purchases.sejarah_sprint_expiresAt)) {
+        hasAccess = true;
+      }
+
+      if (!hasAccess) {
+        document.getElementById('qa-body').innerHTML = `
+          <div class="flex flex-col items-center justify-center py-20 px-4">
+            <div class="text-center max-w-md">
+              <h2 class="text-2xl font-bold text-slate-900 mb-2">Akses Berbayar</h2>
+              <p class="text-slate-600 mb-6">Soalan ini memerlukan satu daripada pelan Pro, Premium, atau Trial Pass untuk diakses.</p>
+              <a href="/#pricing" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg">
+                Lihat Pelan
+              </a>
+            </div>
+          </div>
+        `;
+        return;
+      }
+    } catch(e) {
+      console.error('Error checking access:', e);
+    }
+  }
+
   let title = 'Soalan Esei', sub = '';
   if (data.contentId) {
     try {
@@ -796,6 +1168,16 @@ async function loadQA() {
       _contentLang  = content?.lang    || 'bm';
       _displayLang  = _contentLang === 'en' ? 'en' : 'bm';
       sub           = `${_qaSubject}${_qaSubject && content?.year ? ' · ' : ''}${content?.year||''}`;
+
+      // Load K2 marking scheme if available
+      if (content?.slots?.k2?.markingId) {
+        try {
+          const k2Scheme = await window._getK2Marking(content.slots.k2.markingId);
+          if (k2Scheme?.parts?.length) {
+            _mergeK2Scheme(data.questions, k2Scheme.parts);
+          }
+        } catch(e) { console.warn('K2 scheme load error:', e); }
+      }
     } catch(e) {}
   }
 

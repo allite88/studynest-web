@@ -14,6 +14,8 @@
 <link rel="canonical" href="https://allite.space/quiz.html"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
 <script type="application/ld+json">
 {
@@ -316,6 +318,22 @@ let MEMBER_GEMINI_KEY = '';
 let IS_MEMBER = false;
 let currentLang = 'ms';
 
+function renderMath(text, mathText, idSuffix = '') {
+  if (!mathText) return text || '';
+  const id = 'math-' + Math.random().toString(36).substr(2, 9) + (idSuffix ? '-' + idSuffix : '');
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el && window.katex) {
+      try {
+        window.katex.render(mathText, el, { throwOnError: false });
+      } catch(e) {
+        el.innerText = text || mathText;
+      }
+    }
+  }, 0);
+  return `<span id="${id}" class="katex-render"></span>`;
+}
+
 const SYSTEM_PROMPTS = {
   ms: `Kamu adalah tutor SPM Sejarah Malaysia yang pakar, mesra dan sabar. Kamu tahu semua topik Sejarah Form 4 dan Form 5 KSSM dengan mendalam. Jawab dalam Bahasa Melayu yang mudah difahami oleh pelajar SPM. Gunakan poin-poin pendek. Jika penjelasan disediakan dalam konteks, gunakan ia sebagai asas jawapan kamu dan kembangkan lagi.`,
   en: `You are an expert, friendly SPM Malaysian History (Sejarah) tutor. You know all Form 4 and Form 5 KSSM topics in depth. Answer in clear, simple English for SPM students. Use short bullet points. If an explanation is provided in the context, use it as the basis of your answer and expand further.`,
@@ -421,7 +439,11 @@ function showQuestion(idx) {
   answered = false;
 
   document.getElementById('q-num').textContent = `S${idx+1}/${questions.length}`;
-  document.getElementById('q-text').textContent = q.q;
+  // Support Math rendering for question text
+  const qMath = q.qMath;
+  document.getElementById('q-text').innerHTML = qMath
+    ? renderMath(q.q, qMath, 'q-text-'+idx)
+    : q.q;
 
   // Inline image (set in admin via qImg field)
   const imgWrap  = document.getElementById('q-img-wrap');
@@ -436,13 +458,18 @@ function showQuestion(idx) {
     imgBadge.classList.add('hidden');
   }
 
-  // Reset options (support optional per-option images)
+  // Reset options (support optional per-option images and Math rendering)
   ['A','B','C','D'].forEach(l => {
     const btn = document.getElementById('opt-'+l);
     btn.className = 'opt-btn rounded-xl px-4 py-3.5 text-left text-slate-700 font-medium flex items-start gap-3';
     btn.disabled = false;
-    const optImg = q[l.toLowerCase()+'Img'];
-    document.getElementById('txt-'+l).innerHTML = q[l.toLowerCase()] +
+    const lower = l.toLowerCase();
+    const optImg = q[lower+'Img'];
+    const optMath = q[lower+'Math'];
+    const optText = optMath
+      ? renderMath(q[lower], optMath, 'opt-'+l)
+      : q[lower];
+    document.getElementById('txt-'+l).innerHTML = optText +
       (optImg ? `<br><img src="${optImg}" class="mt-1.5 max-h-24 rounded-lg border border-slate-200">` : '');
   });
 

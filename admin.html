@@ -8,6 +8,8 @@
 <meta name="description" content="Allite Admin Dashboard — Internal management tool"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; background:#f1f5f9; }
   .field { width:100%; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:13px; outline:none; transition:border .15s; font-family:inherit; }
@@ -525,6 +527,23 @@ function compressImg(dataUrl) {
     };
     img.src = dataUrl;
   });
+}
+
+// Render text with optional LaTeX math version
+function renderMath(text, mathText, idSuffix = '') {
+  if (!mathText) return text || '';
+  const id = 'math-' + Math.random().toString(36).substr(2, 9) + (idSuffix ? '-' + idSuffix : '');
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el && window.katex) {
+      try {
+        window.katex.render(mathText, el);
+      } catch(e) {
+        el.innerText = text || mathText;
+      }
+    }
+  }, 0);
+  return `<span id="${id}" class="katex-render"></span>`;
 }
 
 // Compress then upload base64 image to Firebase Storage, return download URL.
@@ -1238,7 +1257,7 @@ function renderQCard(q, i) {
   return `<div class="q-card ${exp?'expanded':''}" id="qc-${i}" style="${isTagged?'':'border-left:3px solid #fbbf24;'}">
     <div class="q-header select-none" onclick="toggleQCard(${i})">
       <span class="text-xs font-bold text-indigo-500 shrink-0 w-8">S${q.no||i+1}</span>
-      <span class="text-sm text-slate-600 flex-1 truncate">${escHtml(q.q||'(kosong)')}</span>
+      <span class="text-sm text-slate-600 flex-1 truncate">${q.qMath ? renderMath(q.q, q.qMath, 'header-'+i) : escHtml(q.q||'(kosong)')}</span>
       ${imgBadge} ${tagBadge} ${answerBadge}
       <span class="text-slate-300 text-xs shrink-0">${exp?'▲':'▼'}</span>
     </div>
@@ -1264,6 +1283,10 @@ function renderQCardBody(q, i) {
         ${bil?`<input class="field text-sm flex-1" type="text" value="${escAttr(q[l+'EN']||'')}" placeholder="EN" oninput="qeSet(${i},'${l}EN',this.value)">`:``}
         <button onclick="triggerOptImg(${i},'${l}')" title="Gambar pilihan ${l.toUpperCase()}" class="shrink-0 text-indigo-400 hover:text-indigo-600 px-1.5 py-1 rounded text-sm hover:bg-indigo-50 transition border border-indigo-200">🖼</button>
         <input type="file" accept="image/*" class="hidden" id="optimg-${i}-${l}" onchange="fileOptImg(this,${i},'${l}')">
+      </div>
+      <div class="ml-6 mt-1 space-y-1">
+        <input class="field text-xs w-full" type="text" value="${escAttr(q[l+'Math']||'')}" placeholder="LaTeX (cth: \\\\frac{9}{4})" oninput="qeSet(${i},'${l}Math',this.value)">
+        ${q[l+'Math'] ? `<div class="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">Math: ${renderMath(q[l], q[l+'Math'], 'opt-'+i+l)}</div>` : ''}
       </div>
       ${q[l+'Img'] ? `<div class="ml-6 mt-1 flex items-start gap-2"><img src="${q[l+'Img']}" class="max-h-16 rounded-lg border border-slate-200"><button onclick="qeSet(${i},'${l}Img','');renderQeList()" class="text-xs text-red-400 hover:underline mt-1">× Buang</button></div>` : ''}
     </div>`).join('')}
@@ -1320,7 +1343,7 @@ window.qeDel = (i) => {
   qeQuestions.splice(i,1); qeExpanded=null; renderQeList();
 };
 window.addQuestion = () => {
-  qeQuestions.push({ no:qeQuestions.length+1, q:'', a:'', b:'', c:'', d:'', answer:'A', qImg:'', explanation:'', explanationCN:'', explanationEN:'', memoryTrick:'', form:'', bab:'' });
+  qeQuestions.push({ no:qeQuestions.length+1, q:'', qMath:'', a:'', aMath:'', b:'', bMath:'', c:'', cMath:'', d:'', dMath:'', answer:'A', qImg:'', explanation:'', explanationCN:'', explanationEN:'', memoryTrick:'', form:'', bab:'' });
   qeExpanded = qeQuestions.length-1; renderQeList();
   setTimeout(() => document.getElementById(`qc-${qeExpanded}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 80);
 };
@@ -1364,10 +1387,15 @@ window.doImportK1JSON = () => {
       no,
       q:             src.q   ?? ex.q   ?? '',
       qEN:           src.qEN ?? ex.qEN ?? '',
+      qMath:         src.qMath ?? ex.qMath ?? '',
       a:             src.a   ?? ex.a   ?? '',
       b:             src.b   ?? ex.b   ?? '',
       c:             src.c   ?? ex.c   ?? '',
       d:             src.d   ?? ex.d   ?? '',
+      aMath:         src.aMath ?? ex.aMath ?? '',
+      bMath:         src.bMath ?? ex.bMath ?? '',
+      cMath:         src.cMath ?? ex.cMath ?? '',
+      dMath:         src.dMath ?? ex.dMath ?? '',
       aEN:           src.aEN ?? ex.aEN ?? '',
       bEN:           src.bEN ?? ex.bEN ?? '',
       cEN:           src.cEN ?? ex.cEN ?? '',
@@ -1608,7 +1636,7 @@ window.extractFromPdf = async (input) => {
     .sort((a,b)=>(a.no||0)-(b.no||0))
     .map(q => {
       const existing = qeQuestions.find(e=>e.no===q.no) || {};
-      return { ...q, qImg: existing.qImg||'', aImg: existing.aImg||'', bImg: existing.bImg||'', cImg: existing.cImg||'', dImg: existing.dImg||'' };
+      return { ...q, qImg: existing.qImg||'', qMath: existing.qMath||'', aImg: existing.aImg||'', aMath: existing.aMath||'', bImg: existing.bImg||'', bMath: existing.bMath||'', cImg: existing.cImg||'', cMath: existing.cMath||'', dImg: existing.dImg||'', dMath: existing.dMath||'' };
     });
 
   qeQuestions = unique; qeExpanded = null; renderQeList();
@@ -2148,7 +2176,7 @@ window.qaeAddStep = (qi, pi) => {
   if (!qaeQuestions[qi]?.parts?.[pi]) return;
   const part = qaeQuestions[qi].parts[pi];
   if (!part.steps) part.steps = [];
-  part.steps.push({ label: '', expected: '', marks: 1 });
+  part.steps.push({ label: '', expected: '', marks: 1, keywords: [], ecf: false });
   renderQAList();
 };
 
@@ -2173,6 +2201,13 @@ window.qaeSetPartAnswerType = (qi, pi, type) => {
   }
   if (type === 'calculation_steps' && !part.steps) {
     part.steps = [];
+  }
+  if (type === 'final_numeric' && part.expected === undefined) {
+    part.expected = 0;
+    part.tolerance = 0;
+  }
+  if (type === 'diagram_label' && !part.diagram) {
+    part.diagram = { imageUrl: '', labels: [] };
   }
   renderQAList();
 };
@@ -2398,7 +2433,9 @@ function renderSubPart(qi, pi, p) {
         <option value="calculation_steps" ${p.answerType === 'calculation_steps' ? 'selected' : ''}>Calculation Steps</option>
         <option value="table_cells" ${p.answerType === 'table_cells' ? 'selected' : ''}>Table Cells</option>
         <option value="formula" ${p.answerType === 'formula' ? 'selected' : ''}>Formula</option>
+        <option value="final_numeric" ${p.answerType === 'final_numeric' ? 'selected' : ''}>Final Numeric</option>
         <option value="rubric_based" ${p.answerType === 'rubric_based' ? 'selected' : ''}>Rubric Based</option>
+        <option value="diagram_label" ${p.answerType === 'diagram_label' ? 'selected' : ''}>Diagram Label</option>
       </select>
     </div>
 
@@ -2469,6 +2506,14 @@ function renderSubPart(qi, pi, p) {
             onchange="qaeSetStep(${qi},${pi},${si},'label',this.value)">
           <input type="text" class="field w-full mb-1" placeholder="预期答案" value="${escAttr(step.expected || '')}"
             onchange="qaeSetStep(${qi},${pi},${si},'expected',this.value)">
+          <input type="text" class="field w-full mb-1 text-xs" placeholder="keywords (koma-pisah, pilihan)"
+            value="${escAttr((step.keywords||[]).join(', '))}"
+            onchange="qaeSetStep(${qi},${pi},${si},'keywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+          <label class="flex items-center gap-1 text-xs mb-1">
+            <input type="checkbox" ${step.ecf ? 'checked' : ''}
+              onchange="qaeSetStep(${qi},${pi},${si},'ecf',this.checked)">
+            <span>ECF (beri markah walaupun langkah sebelum salah)</span>
+          </label>
           <div class="flex gap-1">
             <input type="number" class="field flex-1" placeholder="分" value="${step.marks || 1}"
               onchange="qaeSetStep(${qi},${pi},${si},'marks',parseInt(this.value))">
@@ -2476,6 +2521,32 @@ function renderSubPart(qi, pi, p) {
           </div>
         </div>
       `).join('')}
+    </div>
+    ` : ''}
+
+    ${p.answerType === 'final_numeric' ? `
+    <div class="mt-3 border-t border-slate-200 pt-3">
+      <div class="text-xs font-semibold text-slate-400 mb-2">🔢 Final Numeric</div>
+      <div class="space-y-2">
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Jawapan dijangka (expected):</label>
+          <input type="number" step="any" class="field text-sm w-full"
+            value="${p.expected ?? ''}"
+            oninput="qaeSetPart(${qi},${pi},'expected',parseFloat(this.value))">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Toleransi ± (tolerance, default 0):</label>
+          <input type="number" step="any" class="field text-sm w-full"
+            value="${p.tolerance ?? 0}"
+            oninput="qaeSetPart(${qi},${pi},'tolerance',parseFloat(this.value)||0)">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Unit (cth: cm, kg, s — pilihan):</label>
+          <input type="text" class="field text-sm w-full"
+            value="${escAttr(p.unit||'')}"
+            oninput="qaeSetPart(${qi},${pi},'unit',this.value.trim())">
+        </div>
+      </div>
     </div>
     ` : ''}
 
