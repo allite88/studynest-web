@@ -1122,6 +1122,11 @@ window.closePdfModal = () => {
 // ── QUIZ EDITOR ───────────────────────────────────────────────────
 window.openQuizEditor = async (contentId, slotKey, quizId) => {
   console.log('🎯 openQuizEditor called', contentId, slotKey);
+  // Immediately hide K2 editor
+  document.getElementById('sec-content-body').style.display = 'none';
+  document.getElementById('qa-editor').style.display = 'none';
+  document.getElementById('quiz-editor').style.display = 'block';
+
   qeContentId = contentId; qeSlotKey = slotKey; qeQuizId = quizId || null;
   qeQuestions = []; qeExpanded = null;
 
