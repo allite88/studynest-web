@@ -250,52 +250,6 @@
     </div>
   </div>
 
-  <!-- K2 MARKING SCHEME EDITOR (Block-based) -->
-  <div id="k2-editor" class="hidden">
-    <div class="max-w-7xl mx-auto px-4 py-5">
-      <!-- Header -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex items-center gap-3 flex-wrap">
-        <button onclick="k2CloseEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Papers</button>
-        <div class="h-4 w-px bg-slate-200"></div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-700" id="k2e-title">K2 Marking Scheme</div>
-          <div class="text-xs text-slate-400" id="k2e-subtitle"></div>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-400" id="k2e-count">0 soalan</span>
-          <button id="k2e-save-btn" onclick="k2SaveMarking()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Save</button>
-        </div>
-      </div>
-
-      <!-- Import JSON Panel -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-        <div class="font-semibold text-slate-700 text-sm mb-2">📋 Paste Marking Scheme JSON from Gemini</div>
-        <textarea id="k2-import-input" class="field text-xs font-mono w-full" rows="4" placeholder='Paste JSON here...{"parts":[...]}'></textarea>
-        <div class="flex gap-2 mt-2">
-          <button onclick="k2AnalyzeJSON()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">🔍 Analyze</button>
-          <span id="k2-import-status" class="text-xs text-slate-400 flex items-center"></span>
-        </div>
-        <div id="k2-import-error" class="text-xs text-red-500 mt-2 hidden"></div>
-      </div>
-
-      <!-- Main Editor Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <!-- LEFT: Questions List (sticky) -->
-        <div class="lg:col-span-1">
-          <div class="bg-white rounded-xl border border-slate-200 p-4 lg:sticky lg:top-4">
-            <div class="font-semibold text-slate-700 text-sm mb-3">Soalan</div>
-            <div id="k2-questions-list" class="space-y-1.5 max-h-screen overflow-y-auto"></div>
-          </div>
-        </div>
-
-        <!-- RIGHT: Editor (3 columns) -->
-        <div class="lg:col-span-3">
-          <div id="k2-editor-content" class="space-y-3"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- MEMBERS TAB -->
   <div id="sec-members" class="hidden max-w-5xl mx-auto px-4 py-5">
     <div class="flex items-center justify-between mb-4">
@@ -763,14 +717,6 @@ function renderPaperRow(d) {
         🎯 ${lbl}${hasQuiz ? ' ✓' : ' (setup)'}
       </button>`;
     }
-    if (slot.type === 'marking') {
-      const hasMarking = !!slot.markingId;
-      return `<button onclick="openK2MarkingEditor('${d.id}','${key}','${slot.markingId||''}')"
-        class="text-xs px-2.5 py-1 rounded-lg font-semibold transition
-        ${hasMarking ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
-        📋 ${lbl}${hasMarking ? ' ✓' : ' (setup)'}
-      </button>`;
-    }
     if (slot.type === 'pdf') {
       return `<span onclick="previewPdf('${escAttr(slot.url||'')}','${lbl}')"
         class="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 cursor-pointer hover:bg-green-200 transition">📄 ${lbl}</span>`;
@@ -798,7 +744,7 @@ function renderPaperRow(d) {
         <div class="flex flex-wrap gap-1.5 mt-2">
           ${slotBtns} ${jawBadge}
           <button onclick="openQAEditor('${d.id}','${d.qaId||''}')"
-            class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
+            class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
             📝 K2${d.qaId ? ' ✓' : ' (setup)'}
           </button>
         </div>
@@ -824,7 +770,7 @@ function renderGenericRow(d) {
     : `<div class="w-10 h-10 bg-slate-100 rounded-lg mr-3 shrink-0 flex items-center justify-center text-slate-300 text-lg">${currentTab==='books'?'📚':'📄'}</div>`;
   const meta = `<span class="text-slate-400">${d.subject||''} ${d.year?'· '+d.year:''} ${d.kertas?'· K'+d.kertas:''}</span>`;
 
-  const qaBtn = (currentTab === 'notes' || currentTab === 'papers')
+  const qaBtn = (currentTab === 'notes')
     ? `<button onclick="openQAEditor('${d.id}','${(d.qaId||'')}')"
         class="text-xs px-2.5 py-1 rounded-lg font-semibold transition ${d.qaId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}">
         📝 ${d.qaId ? 'K2 ✓' : 'K2 (setup)'}
@@ -1175,6 +1121,7 @@ window.closePdfModal = () => {
 
 // ── QUIZ EDITOR ───────────────────────────────────────────────────
 window.openQuizEditor = async (contentId, slotKey, quizId) => {
+  console.log('🎯 openQuizEditor called', contentId, slotKey);
   qeContentId = contentId; qeSlotKey = slotKey; qeQuizId = quizId || null;
   qeQuestions = []; qeExpanded = null;
 
@@ -1200,14 +1147,17 @@ window.openQuizEditor = async (contentId, slotKey, quizId) => {
   document.getElementById('extract-log').classList.add('hidden');
   document.getElementById('extract-log').innerHTML = '';
 
-  document.getElementById('sec-content-body').classList.add('hidden');
-  document.getElementById('quiz-editor').classList.remove('hidden');
+  document.getElementById('sec-content-body').style.display = 'none';
+  document.getElementById('qa-editor').style.display = 'none';
+  document.getElementById('quiz-editor').style.display = 'block';
+  console.log('📝 qa-editor hidden, quiz-editor shown');
   renderQeList();
 };
 
 window.closeQuizEditor = () => {
-  document.getElementById('quiz-editor').classList.add('hidden');
-  document.getElementById('sec-content-body').classList.remove('hidden');
+  document.getElementById('quiz-editor').style.display = 'none';
+  document.getElementById('qa-editor').style.display = 'none';
+  document.getElementById('sec-content-body').style.display = 'block';
   qeContentId = null; qeSlotKey = null; qeQuizId = null; qeQuestions = []; qeExpanded = null;
   loadContent();
 };
@@ -1873,247 +1823,6 @@ window.updateOrderStatus = async (orderId, status) => {
   loadOrders();
 };
 
-// ── K2 MARKING SCHEME EDITOR (Block-based Schema) ────────────────
-let k2Data = null;
-let k2ContentId = null;
-let k2SlotKey = null;
-let k2MarkingId = null;
-let k2SelectedQuestion = null;
-
-window.openK2MarkingEditor = async (contentId, slotKey, markingId) => {
-  k2ContentId = contentId;
-  k2SlotKey = slotKey;
-  k2MarkingId = markingId || null;
-  k2Data = { parts: [], rules: [] };
-  k2SelectedQuestion = null;
-
-  if (k2MarkingId) {
-    try {
-      const snap = await getDoc(doc(db, 'k2-marking-schemes', k2MarkingId));
-      if (snap.exists()) {
-        k2Data = snap.data();
-      }
-    } catch (e) {
-      console.warn('Error loading K2 marking:', e);
-    }
-  }
-
-  const contentSnap = await getDoc(doc(db, 'content', contentId));
-  const cd = contentSnap.exists() ? contentSnap.data() : {};
-
-  document.getElementById('k2e-title').textContent = `${cd.title || 'Trial Paper'} — K2 Marking`;
-  document.getElementById('k2e-subtitle').textContent = `${cd.subject || ''} · ${cd.year || ''}`;
-  document.getElementById('sec-content-body').classList.add('hidden');
-  document.getElementById('k2-editor').classList.remove('hidden');
-
-  k2RenderQuestions();
-};
-
-window.k2CloseEditor = () => {
-  document.getElementById('k2-editor').classList.add('hidden');
-  document.getElementById('sec-content-body').classList.remove('hidden');
-  k2Data = null;
-  k2ContentId = null;
-  k2SlotKey = null;
-  k2SelectedQuestion = null;
-  loadContent();
-};
-
-window.k2AnalyzeJSON = () => {
-  const input = document.getElementById('k2-import-input');
-  const errorEl = document.getElementById('k2-import-error');
-  const statusEl = document.getElementById('k2-import-status');
-
-  errorEl.classList.add('hidden');
-  statusEl.textContent = '';
-
-  try {
-    const json = JSON.parse(input.value);
-    const data = json.parts ? json : { parts: json };
-
-    if (!data.parts || !Array.isArray(data.parts)) {
-      throw new Error('JSON must have "parts" array');
-    }
-
-    k2Data = data;
-    input.value = '';
-    statusEl.textContent = '✅ Loaded ' + data.parts.length + ' part(s)';
-    k2RenderQuestions();
-  } catch (e) {
-    errorEl.textContent = '❌ ' + e.message;
-    errorEl.classList.remove('hidden');
-  }
-};
-
-function k2RenderQuestions() {
-  const list = document.getElementById('k2-questions-list');
-  const content = document.getElementById('k2-editor-content');
-
-  const parts = k2Data?.parts || [];
-  document.getElementById('k2e-count').textContent = `${parts.length} part${parts.length !== 1 ? 's' : ''}`;
-
-  if (!parts.length) {
-    list.innerHTML = '<div class="text-xs text-slate-400 text-center py-4">Paste JSON to load</div>';
-    content.innerHTML = '<div class="text-center text-slate-400 py-8">No parts loaded</div>';
-    return;
-  }
-
-  list.innerHTML = parts.map((part, i) => {
-    const isSelected = k2SelectedQuestion === i;
-    const totalMarks = part.marks || 0;
-    const partLabel = part.id || String.fromCharCode(97 + i);
-    return `<div class="p-2.5 rounded-lg cursor-pointer transition border-l-2 ${isSelected ? 'bg-indigo-100 border-indigo-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}"
-      onclick="k2SelectQuestion(${i})">
-      <div class="text-xs font-bold text-slate-700">(${partLabel})</div>
-      <div class="text-xs text-slate-500">${totalMarks}m</div>
-    </div>`;
-  }).join('');
-
-  if (k2SelectedQuestion === null && parts.length > 0) {
-    k2SelectQuestion(0);
-  } else if (k2SelectedQuestion !== null) {
-    k2RenderEditor(k2SelectedQuestion);
-  }
-}
-
-window.k2SelectQuestion = (index) => {
-  k2SelectedQuestion = index;
-  k2RenderQuestions();
-};
-
-function k2RenderEditor(index) {
-  const part = k2Data.parts[index];
-  if (!part) return;
-
-  const content = document.getElementById('k2-editor-content');
-  const partLabel = part.id || String.fromCharCode(97 + index);
-  const blocks = part.blocks || [];
-
-  let html = `
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-bold text-slate-700 text-sm">(${partLabel}) — ${part.marks || 0} marks</h3>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="text-xs font-semibold text-slate-500">Block Type</label>
-          <div class="text-xs text-slate-600 py-2 bg-slate-50 px-3 rounded">${part.blocks?.[0]?.type || 'list'}</div>
-        </div>
-
-        ${blocks.length ? blocks.map((block, bi) => k2RenderBlock(block, bi, index)).join('') : '<div class="text-xs text-slate-400 italic">No blocks</div>'}
-      </div>
-
-      <div class="mt-4 pt-4 border-t border-slate-100">
-        <textarea class="field text-xs w-full" rows="6" placeholder="Edit JSON directly..." oninput="this.dataset.json = this.value">${JSON.stringify(part, null, 2)}</textarea>
-        <button onclick="k2UpdatePart(${index}, document.querySelector('textarea[rows=6]').value)" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition">✓ Update Part</button>
-      </div>
-    </div>
-  `;
-
-  content.innerHTML = html;
-}
-
-function k2RenderBlock(block, bi, qi) {
-  const items = block.items || [];
-  if (block.type === 'list') {
-    return `
-      <div class="bg-slate-50 rounded-lg p-3">
-        <div class="text-xs font-semibold text-slate-600 mb-2">List Items (${items.length})</div>
-        ${items.map((item, ii) => `
-          <div class="text-xs bg-white rounded p-2 mb-1 flex justify-between items-start">
-            <div>
-              <div class="font-semibold text-slate-700">${item.text || '(empty)'}</div>
-              <div class="text-slate-500">${item.marks || 0}m • ${(item.keywords || []).join(', ') || '(no keywords)'}</div>
-            </div>
-            <button onclick="k2DeleteItem(${qi}, ${bi}, ${ii})" class="text-red-500 text-xs hover:text-red-700">✕</button>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-  if (block.type === 'formula') {
-    return `
-      <div class="bg-slate-50 rounded-lg p-3">
-        <div class="text-xs font-semibold text-slate-600 mb-2">Formula</div>
-        <code class="text-xs bg-white p-2 rounded block">${block.latex || '(empty)'}</code>
-      </div>
-    `;
-  }
-  if (block.type === 'numeric') {
-    return `
-      <div class="bg-slate-50 rounded-lg p-3">
-        <div class="text-xs font-semibold text-slate-600 mb-2">Numeric Answer</div>
-        <div class="text-xs bg-white p-2 rounded">${block.value || 0} ±${block.tolerance || 0.01}</div>
-      </div>
-    `;
-  }
-  return `<div class="text-xs text-slate-400">Block type: ${block.type}</div>`;
-}
-
-window.k2UpdatePart = (index, json) => {
-  try {
-    const updated = JSON.parse(json);
-    k2Data.parts[index] = { ...k2Data.parts[index], ...updated };
-    k2RenderEditor(index);
-  } catch (e) {
-    alert('Invalid JSON: ' + e.message);
-  }
-};
-
-window.k2DeleteItem = (qi, bi, ii) => {
-  if (confirm('Delete this item?')) {
-    k2Data.parts[qi].blocks[bi].items.splice(ii, 1);
-    k2RenderEditor(qi);
-  }
-};
-
-window.k2SaveMarking = async () => {
-  const btn = document.getElementById('k2e-save-btn');
-  btn.textContent = 'Saving...';
-  btn.disabled = true;
-
-  try {
-    const markingData = {
-      contentId: k2ContentId,
-      slotKey: k2SlotKey,
-      ...k2Data,
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser?.email || 'unknown'
-    };
-
-    if (k2MarkingId) {
-      await updateDoc(doc(db, 'k2-marking-schemes', k2MarkingId), markingData);
-    } else {
-      const ref = await addDoc(collection(db, 'k2-marking-schemes'), {
-        ...markingData,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser?.email || 'unknown'
-      });
-      k2MarkingId = ref.id;
-      await updateDoc(doc(db, 'content', k2ContentId), {
-        slots: {
-          ...(editingData?.slots || {}),
-          [k2SlotKey]: {
-            type: 'marking',
-            markingId: ref.id
-          }
-        }
-      });
-    }
-
-    btn.textContent = '✅ Saved!';
-    setTimeout(() => {
-      btn.textContent = '💾 Save';
-      btn.disabled = false;
-    }, 2000);
-  } catch (e) {
-    btn.textContent = '💾 Save';
-    btn.disabled = false;
-    alert('Error: ' + e.message);
-  }
-};
-
 // ── K2 MARKING BUILDER HELPERS ─────────────────────────────────────
 /**
  * 获取数据版本和答题类型（新增 schemaVersion 2 支持）
@@ -2273,15 +1982,16 @@ window.openQAEditor = async (contentId, qaId) => {
   if (keyEl) keyEl.value = localStorage.getItem('allite_gkey') || '';
   document.getElementById('qa-extract-log').classList.add('hidden');
   document.getElementById('qa-extract-log').innerHTML = '';
-  document.getElementById('sec-content-body').classList.add('hidden');
-  document.getElementById('quiz-editor').classList.add('hidden');
-  document.getElementById('qa-editor').classList.remove('hidden');
+  document.getElementById('sec-content-body').style.display = 'none';
+  document.getElementById('quiz-editor').style.display = 'none';
+  document.getElementById('qa-editor').style.display = 'block';
   renderQAList();
 };
 
 window.closeQAEditor = () => {
-  document.getElementById('qa-editor').classList.add('hidden');
-  document.getElementById('sec-content-body').classList.remove('hidden');
+  document.getElementById('qa-editor').style.display = 'none';
+  document.getElementById('quiz-editor').style.display = 'none';
+  document.getElementById('sec-content-body').style.display = 'block';
   qaeContentId = null; qaeQAId = null; qaeQuestions = []; qaeExpanded = null;
   loadContent();
 };
