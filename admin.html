@@ -116,17 +116,26 @@
     <!-- Q&A EDITOR (replaces content body, for Notes tab) -->
     <div id="qa-editor" class="hidden">
       <!-- Header -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex items-center gap-3 flex-wrap">
-        <button onclick="closeQAEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Notes</button>
-        <div class="h-4 w-px bg-slate-200"></div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-700" id="qae-title">Q&A Editor</div>
-          <div class="text-xs text-slate-400" id="qae-subtitle"></div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+        <div class="flex items-center gap-3 flex-wrap mb-3">
+          <button onclick="closeQAEditor()" class="text-slate-400 hover:text-slate-700 text-sm flex items-center gap-1 transition">← Notes</button>
+          <div class="h-4 w-px bg-slate-200"></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-slate-700" id="qae-title">Q&A Editor</div>
+            <div class="text-xs text-slate-400" id="qae-subtitle"></div>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-400" id="qae-count"></span>
-          <button id="qae-save-btn" onclick="saveQA()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Save Q&A</button>
+        <!-- Content Selector -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs text-slate-500 font-semibold">Select Content:</label>
+          <select id="qae-content-selector" class="field text-xs" style="flex:1;min-width:200px" onchange="selectContentForQA(this.value)">
+            <option value="">— Choose content to edit —</option>
+          </select>
         </div>
+      </div>
+
+        <span class="text-xs text-slate-400" id="qae-count"></span>
+        <button id="qae-save-btn" onclick="saveQA()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">💾 Save Q&A</button>
       </div>
 
       <!-- 2-column layout -->
@@ -2252,6 +2261,14 @@ window.openQAEditor = async (contentId, qaId) => {
   qaeContentLang = cd.lang || 'bm';
   document.getElementById('qae-title').textContent = `${cd.title||'Note'} — Q&A Editor`;
   document.getElementById('qae-subtitle').textContent = `${cd.subject||''} · ${cd.year||''}${qaeContentLang==='bilingual'?' · 🌐 Bilingual':''}`;
+
+  // Update selector to show current content
+  const selector = document.getElementById('qae-content-selector');
+  if (selector) {
+    populateQAContentSelector();
+    selector.value = contentId;
+  }
+
   const keyEl = document.getElementById('gemini-key-qa');
   if (keyEl) keyEl.value = localStorage.getItem('allite_gkey') || '';
   document.getElementById('qa-extract-log').classList.add('hidden');
@@ -2269,8 +2286,28 @@ window.closeQAEditor = () => {
   loadContent();
 };
 
+window.selectContentForQA = async (contentId) => {
+  if (!contentId) return;
+  const snap = await getDoc(doc(db,'content',contentId));
+  const content = snap.data() || {};
+  const qaId = content.qaId || null;
+  await openQAEditor(contentId, qaId);
+};
+
+window.populateQAContentSelector = () => {
+  const selector = document.getElementById('qae-content-selector');
+  if (!selector) return;
+  selector.innerHTML = '<option value="">— Choose content to edit —</option>';
+  cmsData.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.title} (${c.subject} ${c.year})`;
+    selector.appendChild(opt);
+  });
+};
+
 window.saveQA = async () => {
-  if (!qaeContentId) return;
+  if (!qaeContentId) { alert('Please select a content first'); return; }
   const btn = document.getElementById('qae-save-btn');
   btn.textContent = 'Uploading...'; btn.disabled = true;
   try {
