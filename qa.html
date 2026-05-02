@@ -1100,8 +1100,13 @@ async function loadQA() {
   }
 
   let attempts = 0;
-  while (!window._getQADoc && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  while (!window._getQADoc && attempts++ < 100) await new Promise(r => setTimeout(r, 50));
   if (window._authReady) await window._authReady;
+
+  if (!window._getQADoc) {
+    document.getElementById('qa-body').innerHTML = '<div class="text-center text-slate-400 py-16">Firebase tidak tersedia. Sila segarkan halaman atau hubungi admin.</div>';
+    return;
+  }
 
   let data = null;
   try { data = await window._getQADoc(qaId); } catch(e) { console.error(e); }
