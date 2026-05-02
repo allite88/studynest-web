@@ -2006,7 +2006,7 @@ window.selectContentForQA = async (contentId) => {
 
 window.populateQAContentSelector = () => {
   const selector = document.getElementById('qae-content-selector');
-  if (!selector) return;
+  if (!selector || !cmsData) return;
   selector.innerHTML = '<option value="">— Choose content to edit —</option>';
   cmsData.forEach(c => {
     const opt = document.createElement('option');
