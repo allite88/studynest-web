@@ -382,8 +382,13 @@ async function loadQuiz() {
 
   // Wait for Firebase module + auth state
   let attempts = 0;
-  while (!window._getQuizDoc && attempts++ < 30) await new Promise(r => setTimeout(r, 100));
+  while (!window._getQuizDoc && attempts++ < 100) await new Promise(r => setTimeout(r, 50));
   if (window._authReady) await window._authReady;
+  if (!window._getQuizDoc) {
+    document.getElementById('quiz-title').textContent = 'Firebase tidak tersedia';
+    document.getElementById('quiz-sub').textContent = 'Sila segarkan halaman atau hubungi admin';
+    return;
+  }
 
   let quizData = null;
   try { quizData = await window._getQuizDoc(quizId); } catch(e) { console.error('loadQuiz error:', e); }
