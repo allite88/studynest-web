@@ -206,8 +206,8 @@
 
       // Check Trial Pass (limited access, non-expired)
       if (p.trial_pass && !isExpired(p.trial_pass_expiresAt)) {
-        // Trial only gives quiz, limited papers, limited k2 practice
-        return type === 'quiz' || type === 'limited-papers' || type === 'limited-k2';
+        // Trial only gives quiz, papers, and k2 practice (but marked as limited in UI)
+        return type === 'quiz' || type === 'papers' || type === 'k2-practice';
       }
 
       // Check Sprint Pack for specific subject (non-expired)
@@ -344,6 +344,14 @@
         style="background:var(--amber-l);color:var(--amber)">💎 Pricing</button>
     </nav>
 
+    <!-- Hamburger menu (mobile) -->
+    <button id="mobile-menu-btn" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+      class="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+
     <!-- Auth + Menu -->
     <div class="flex items-center gap-2 shrink-0">
       <!-- Logged out -->
@@ -400,6 +408,65 @@
   </div>
 </header>
 
+<!-- Mobile Menu (modal) -->
+<div id="mobile-menu" class="hidden fixed inset-0 top-14 md:hidden bg-black/20 z-40">
+  <div class="absolute top-0 right-0 w-full max-w-xs h-screen bg-white shadow-lg overflow-y-auto">
+    <div class="p-4 space-y-2">
+      <button onclick="goK2Demo(); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 font-semibold text-sm" style="color:var(--text)">
+        K2 Demo
+      </button>
+      <button onclick="nav('papers'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 font-semibold text-sm" style="color:var(--text)">
+        Trial Papers
+      </button>
+      <button onclick="nav('pricing'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 font-semibold text-sm" style="color:var(--amber)">
+        💎 Pricing
+      </button>
+      <div class="border-t border-gray-200 my-2"></div>
+      <button onclick="nav('notes'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--text)">
+        📖 Notes/Guides
+      </button>
+      <button onclick="window.location.href='topics.html'; document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--text)">
+        🗂 By Topic
+      </button>
+      <button onclick="nav('collection'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--text)">
+        📦 Collection
+      </button>
+      <button onclick="nav('books'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--text)">
+        📚 Books
+      </button>
+      <button onclick="nav('careers'); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--text)">
+        🎓 Careers
+      </button>
+      <div class="border-t border-gray-200 my-2"></div>
+      <button id="mobile-login" onclick="window._login(); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm font-semibold" style="color:var(--text)">
+        Sign in
+      </button>
+      <button id="mobile-logout" onclick="window._logout(); document.getElementById('mobile-menu').classList.add('hidden')"
+        class="hidden block w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 text-sm" style="color:var(--muted)">
+        Sign out
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Close mobile menu on backdrop click -->
+<script>
+  document.getElementById('mobile-menu').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+      document.getElementById('mobile-menu').classList.add('hidden');
+    }
+  });
+</script>
+
 <!-- ════════════════════════════════════════════════════════════════
      HOME
 ════════════════════════════════════════════════════════════════ -->
@@ -424,9 +491,9 @@
               class="btn-primary font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
               Cuba K2 Demo Percuma →
             </button>
-            <button onclick="nav('pricing')"
-              class="btn-outline font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
-              Lihat Pelan
+            <button onclick="if(!window._getUid()){window._login()}else{startPayment('sejarah_sprint',this)}"
+              class="btn-amber font-semibold px-6 py-3 rounded-xl text-sm transition-colors">
+              Buka Sprint RM29 →
             </button>
           </div>
         </div>
@@ -1330,8 +1397,8 @@
             <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:#fef3c7;color:#92400e">LAST-MINUTE</span>
           </div>
           <div class="mb-1">
-            <span class="text-3xl font-extrabold" style="color:var(--text)">RM29–49</span>
-            <span class="text-xs ml-0.5" style="color:var(--muted)">per subjek / 30 hari</span>
+            <span class="text-3xl font-extrabold" style="color:var(--text)">RM29</span>
+            <span class="text-xs ml-0.5" style="color:var(--muted)">/ 30 hari</span>
           </div>
           <p class="text-xs mb-4" style="color:var(--muted)">Untuk pecutan sebelum peperiksaan.</p>
           <ul class="space-y-1.5 mb-5 flex-1 text-xs" style="color:var(--text)">
@@ -1641,10 +1708,14 @@ window._onAuth = function(user, userData, needsProfile) {
   const userChip   = document.getElementById('user-chip');
   const badgePrem  = document.getElementById('badge-prem');
   const btnUpgrade = document.getElementById('btn-upgrade');
+  const mobileLogin = document.getElementById('mobile-login');
+  const mobileLogout = document.getElementById('mobile-logout');
   if (user) {
     btnLogin.classList.add('hidden'); btnLogin.classList.remove('flex');
     userChip.classList.remove('hidden'); userChip.classList.add('flex');
     document.getElementById('user-avatar').src = user.photoURL||'';
+    mobileLogin && mobileLogin.classList.add('hidden');
+    mobileLogout && mobileLogout.classList.remove('hidden');
     if (IS_PREMIUM) {
       badgePrem && badgePrem.classList.remove('hidden');
       btnUpgrade && btnUpgrade.classList.add('hidden');
@@ -1657,6 +1728,8 @@ window._onAuth = function(user, userData, needsProfile) {
     btnLogin.classList.remove('hidden'); btnLogin.classList.add('flex');
     userChip.classList.add('hidden'); userChip.classList.remove('flex');
     badgePrem && badgePrem.classList.add('hidden');
+    mobileLogin && mobileLogin.classList.remove('hidden');
+    mobileLogout && mobileLogout.classList.add('hidden');
   }
   if (!document.getElementById('pg-notes').classList.contains('hidden'))   loadNotesPage();
   if (!document.getElementById('pg-papers').classList.contains('hidden'))  renderPapers();

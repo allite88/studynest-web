@@ -1,0 +1,16 @@
+{
+  "name": "allite-functions",
+  "description": "Firebase Cloud Functions for Allite SPM Platform",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0"
+  }
+}
